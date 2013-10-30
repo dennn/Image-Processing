@@ -6,6 +6,8 @@
 
 #define M_PI 3.141592654
 
+using namespace cv;
+
 /** 
  * Function to add gaussian blur to an image
  *
@@ -14,12 +16,16 @@
  *           A kernel size
  */
 void Sobel(
-	cv::Mat &input);
+	Mat &input, int T);
+	
+void Hough(Mat &magnitude);
+
+void Threshold(Mat &magnitude, int threshold);
 
 int main ( int argc, char ** argv )
 {
 	/* Load up all of the images of car numberplates */
-	cv::Mat coin1 = cv::imread("coins1.png", CV_LOAD_IMAGE_GRAYSCALE);
+	Mat coin1 = imread("coins1.png", CV_LOAD_IMAGE_GRAYSCALE);
 
 	/**
 	 * Your task should go here. Make a new function for each of the
@@ -27,19 +33,50 @@ int main ( int argc, char ** argv )
 	 * images and display them. The function GaussianBlur shows you
 	 * how convolution can be implemented.
 	 */
+	Sobel(coin1, atoi(argv[1]));
 
-	Sobel(coin1);
-
-	cv::waitKey();
+	waitKey();
 
 	return 0;
 }
 
-void Sobel(cv::Mat &input)
+void Hough(Mat &magnitude)
+{
+  Mat src;
+  src.create(magnitude.size(), CV_64FC1);
+  vector<Vec3f> circles;
+  HoughCircles( magnitude, circles, CV_HOUGH_GRADIENT, 1, magnitude.rows/32, 255, 240, 5, 0 );
+  
+  for(size_t i = 0; i < circles.size(); i++) 
+  {
+    Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+    int radius = cvRound(circles[i][2]);
+    circle(src, center, 3, Scalar(0, 255, 0), -1, 8, 0);
+    circle(src, center, radius, Scalar(0,0,255), 3, 8, 0);
+  }
+  
+  imshow("Hough", src);
+}
+
+void Threshold(Mat &magnitude, int threshold)
+{
+  for ( int i = 0; i < magnitude.rows; i++ )
+	{	
+		for( int j = 0; j < magnitude.cols; j++ )
+		{
+		  if (magnitude.at<uchar>( i, j ) > threshold)
+		    magnitude.at<uchar>( i, j ) = 255;
+		  else
+		    magnitude.at<uchar>( i, j ) = 0;
+		}
+	}
+}
+
+void Sobel(Mat &input, int T)
 {
 	// Create kernels
-	cv::Mat kernelX = (cv::Mat_<double>(3,3) << -1, 0, 1, -2, 0, 2, -1,  0,  1);
-	cv::Mat kernelY = (cv::Mat_<double>(3,3) <<  1, 2, 1,  0, 0, 0, -1, -2, -1);
+	Mat kernelX = (Mat_<double>(3,3) << -1, 0, 1, -2, 0, 2, -1,  0,  1);
+	Mat kernelY = (Mat_<double>(3,3) <<  1, 2, 1,  0, 0, 0, -1, -2, -1);
 
 	// we need to create a padded version of the input
 	// or there will be border effects
@@ -47,14 +84,14 @@ void Sobel(cv::Mat &input)
 	int kernelRadiusY = ( kernelX.size[1] - 1 ) / 2;
 
 	// create the temporary kernel
-	cv::Mat tempX, tempY;
+	Mat tempX, tempY;
 	tempX.create(input.size(), CV_64FC1);
 	tempY.create(input.size(), CV_64FC1);
 
-	cv::Mat paddedInput;
-	cv::copyMakeBorder( input, paddedInput, 
+	Mat paddedInput;
+	copyMakeBorder( input, paddedInput, 
 		kernelRadiusX, kernelRadiusX, kernelRadiusY, kernelRadiusY,
-		cv::BORDER_REPLICATE );
+		BORDER_REPLICATE );
 	// now we can do the convoltion
 	for ( int i = 0; i < input.rows; i++ )
 	{	
@@ -90,13 +127,13 @@ void Sobel(cv::Mat &input)
 	}
 
 	// Magnitude
-	cv::Mat magnitude;
+	Mat magnitude;
 	magnitude.create(input.size(), CV_64FC1);
 	magnitude = tempX.mul(tempX) + tempY.mul(tempY);
-	cv::sqrt(magnitude, magnitude);
+	sqrt(magnitude, magnitude);
 
 	// Angle
-	cv::Mat angle;
+	Mat angle;
 	angle.create(input.size(), CV_64FC1);
 	for ( int i = 0; i < input.rows; i++ )
 	{	
@@ -108,14 +145,17 @@ void Sobel(cv::Mat &input)
 
 	//angle = atan2(tempY/tempX);
 
-	cv::normalize(tempX, tempX, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::normalize(tempY, tempY, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::normalize(magnitude, magnitude, 0, 255, cv::NORM_MINMAX, CV_8UC1);
-	cv::normalize(angle, angle, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+	normalize(tempX, tempX, 0, 255, NORM_MINMAX, CV_8UC1);
+	normalize(tempY, tempY, 0, 255, NORM_MINMAX, CV_8UC1);
+	normalize(magnitude, magnitude, 0, 255, NORM_MINMAX, CV_8UC1);
+	normalize(angle, angle, 0, 255, NORM_MINMAX, CV_8UC1);
 
+  Threshold (magnitude, T);
 	/* Display the images */
-	cv::imshow("X", tempX);
-	cv::imshow("Y", tempY);
-	cv::imshow("Magnitude", magnitude);
-	cv::imshow("angle", angle);
+	imshow("X", tempX);
+	imshow("Y", tempY);
+	imshow("Magnitude", magnitude);
+	imshow("angle", angle);
+	
+	Hough(magnitude);
 }
