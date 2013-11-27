@@ -19,19 +19,61 @@ CascadeClassifier logo_cascade;
 
 string window_name = "Capture - Face detection";
 
-void detect_circle (Mat& frame, std::vector<Rect>& boards, double threshold){
+void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, double threshold){
 
 	vector<Vec3f> circles;
 	vector<Rect> candidates;
-	Mat frame_gray;// = frame;
 	double dist;
 	double x_c, y_c;
 	int min_index = 0;
-	double min_dist = 99999.0;
+	double min_dist = 99999.0
+;
+	Mat grad;
+  int scale = 1;
+  int delta = 0;
+  int ddepth = CV_16S;
 	//cvtColor( frame, frame_gray, CV_BGR2GRAY );
 //	Mat frame = imread(image, CV_GRAY_SCALE);
-	HoughCircles( frame, circles, CV_HOUGH_GRADIENT, 1, frame.rows/8, 200, 100, 0, 0 );
+//
+//
+//
+//
+//
+//
+//
+	Mat grad_x, grad_y;
+	  Mat abs_grad_x, abs_grad_y;
+		char* window_name = "Gradient image";
 
+	  /// Gradient X
+	  //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+	  Sobel( frame_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+	  convertScaleAbs( grad_x, abs_grad_x );
+
+	  /// Gradient Y
+	  //Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+	  Sobel( frame_gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+	  convertScaleAbs( grad_y, abs_grad_y );
+
+	  /// Total Gradient (approximate)
+	  addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+	namedWindow( window_name, CV_WINDOW_AUTOSIZE );
+	//imshow(window_name, grad);
+	//waitKey(0);
+
+	HoughCircles( grad, circles, CV_HOUGH_GRADIENT, 1, frame.rows/10, 200, 100, 10, 200 );
+	
+	  for( size_t i = 0; i < circles.size(); i++ )
+  	{
+      	Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+      	int radius = cvRound(circles[i][2]);
+      	// circle center
+     	 circle( frame, center, 3, Scalar(0,255,0), -1, 8, 0 );
+      	// circle outline
+      	circle( frame, center, radius, Scalar(0,0,255), 3, 8, 0 );
+   	}
+	
+/*
 	for (int i = 0; i < circles.size (); i++){
 		for (int j = 0; j < boards.size (); j++){
 //			dist = pow((circles[i][0] - boards[j][0]), 2) 
@@ -46,11 +88,11 @@ void detect_circle (Mat& frame, std::vector<Rect>& boards, double threshold){
 			}
 		}
 	}
-	
-	if ( boards.size () > 0 ){
-		rectangle(frame, Point(boards[min_index].x, boards[min_index].y), Point(boards[min_index].x + boards[min_index].width, boards[min_index].y + boards[min_index].height), Scalar( 0, 255, 0 ), 2);
-	}
-	imwrite( "output.jpg", frame );
+*/	
+//	if ( boards.size () > 0 ){
+//		rectangle(frame, Point(boards[min_index].x, boards[min_index].y), Point(boards[min_index].x + boards[min_index].width, boards[min_index].y + boards[min_index].height), Scalar( 0, 255, 0 ), 2);
+//	}
+	//imwrite( "output.jpg", frame );
 
 	
 }
@@ -60,7 +102,6 @@ int main( int argc, const char** argv )
 	CvCapture* capture;
 	Mat frame = imread(argv[1], CV_LOAD_IMAGE_COLOR);
 	//Mat frame = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
-	GaussianBlur( frame, frame, Size(9, 9), 2, 2 );
 
 	//detect_circle (frame);
 	//-- 1. Load the cascades
@@ -78,20 +119,22 @@ void detectAndSave( Mat frame, double threshold )
 	std::vector<Rect> faces;
 	Mat frame_gray;// = frame;
 
+	GaussianBlur( frame, frame, Size(5, 5), 2, 2 );
 	cvtColor( frame, frame_gray, CV_BGR2GRAY );
-	equalizeHist( frame_gray, frame_gray );
+	//equalizeHist( frame_gray, frame_gray );
 
 	//-- Detect faces
-	logo_cascade.detectMultiScale( frame_gray, faces, 1.1, 1, 0|CV_HAAR_SCALE_IMAGE, Size(50, 50), Size(500,500) );
+	logo_cascade.detectMultiScale( frame_gray, faces, 1.1, 3, 0|CV_HAAR_SCALE_IMAGE, Size(50, 50), Size(500,500) );
 	std::cout << faces.size() << std::endl;
-	detect_circle (frame_gray, faces, threshold);
-	//for( int i = 0; i < faces.size(); i++ )
-//	{
-//		rectangle(frame, Point(faces[i].x, faces[i].y), Point(faces[i].x + faces[i].width, faces[i].y + faces[i].height), Scalar( 0, 255, 0 ), 2);
-//	}
+	//detect_circle (frame_gray, faces, threshold);
+	detect_circle (frame,frame_gray, faces, threshold);
+	for( int i = 0; i < faces.size(); i++ )
+	{
+		rectangle(frame, Point(faces[i].x, faces[i].y), Point(faces[i].x + faces[i].width, faces[i].y + faces[i].height), Scalar( 0, 255, 0 ), 2);
+	}
 
 
 	//-- Save what you got
-//	imwrite( "output.jpg", frame );
+	imwrite( "output.jpg", frame );
 
 }

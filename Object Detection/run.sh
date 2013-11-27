@@ -5,7 +5,7 @@ j=0
 t=30
 #t=$1
 echo "threshold: $t"
-for i in `ls training/dart*.jpg`; do
+for i in `ls dartboards/dart*.jpg`; do
 new_name=$(basename $i)
 ./a.out $i $t ; mv output.jpg dart_out/${new_name}
 done
