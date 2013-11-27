@@ -17,7 +17,7 @@ using namespace cv;
 /** Function Headers */
 void detectAndSave(Mat frame,int,int);
 void circle_hough_transform (Mat& img, vector<Vec3f>& circles);
-void detectDartBoards(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards,int, int);
+void detectDartBoards(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards,vector<Vec4i>&,int, int);
 void circleHough(Mat& img_gray, vector<Vec3f>& circles);
 void detectLines(Mat &frame, vector<Vec4i>lines);
 
@@ -98,11 +98,11 @@ void detectAndSave(Mat img, int max_dist, int min_line_count)
 	//Detect circles without blur
     //	detect_circle (img,img_gray, dartboards);
     
-	//Detect circles with blur
-	detectDartBoards(img, blurred_img_gray, dartboards, max_dist, min_line_count);
-    
     //Detect the lines
     detectLines(img, lines);
+	//Detect circles with blur
+	detectDartBoards(img, blurred_img_gray, dartboards, lines, max_dist, min_line_count);
+    
     
 #ifndef FINAL
 	for( int i = 0; i < dartboards.size(); i++ )
@@ -124,15 +124,18 @@ void detectAndSave(Mat img, int max_dist, int min_line_count)
  * @param boards - A vector of all the dartboards that have been detected with the Haar feature classifier
  *
  */
-void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, int max_dist,
-		int min_line_count)
+void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, vector<Vec4i>& lines,
+		int max_dist,	int min_line_count)
 {
 	vector<Rect> candidates;
 	vector<Vec3f> circles;
 	vector<int> votes;
 	vector<int> closest_sq_dist;
 	vector<int> closest_sq_index;
+	vector<int> line_num_in;
+	Vec4i l;
 	int min_index;
+	int radius;
 
 	double dist;
 	double x_c, y_c;
@@ -158,6 +161,7 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, int
 	votes.clear ();
 	for (int i = 0; i < circles.size (); i++){
 		votes.push_back (0);
+		line_num_in.push_back(0);
 		closest_sq_dist.push_back(999999);
 		closest_sq_index.push_back(-1);
 	}
@@ -165,6 +169,7 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, int
 	for (int i = 0; i < circles.size (); i++){
 		//Creates a Point object for the center of the circle
 		Point circ_c (circles[i][0], circles[i][1]);
+		radius = cvRound(circles[i][2]);
 		//make the haar-like features vote 
 		for (int j = 0; j < boards.size (); j++){
 			//get the square center
@@ -191,16 +196,36 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, int
 			}
 		}
 
-		//Now that all the squares have voted, it is time for the lines
-
+		//count the number of lines within the circle
+		for (int j = 0; j < lines.size ();j++){
+			l = lines[j];
+			int midPointX = ((l[2]-l[0])/2) + l[0]; 
+			int midPointY = ((l[3]-l[1])/2) + l[1];
+			Point mid_point (midPointX, midPointY); 
+	
+				
+			//if the line is within the circle it votes.
+			dist = norm(mid_point - circ_c);
+			if (dist <= radius+5){
+				line_num_in[i]++;
+			}
+		}
 	}
+
+	/*
+		//count the number of lines in the circles and process the votes
+		for (int j = 0; j < circles.size();j++){
+			if (line_num_in[j] > min_line_count)
+				votes[j]++;
+		}
+*/
 
 	//Print the detected boards
 	for (int i = 0; i < circles.size ();i++){
 		if (votes[i] >= 1){
 			//It was voted at least once to be a dart board. Let's consider it a dartboard
 			Point center (circles[i][0], circles[i][1]);
-			int radius = cvRound(circles[i][2]);
+			radius = cvRound(circles[i][2]);
 			circle( frame, center, radius, Scalar(255,255,0), 3, 8, 0 );
 		}
 	}
