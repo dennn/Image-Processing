@@ -22,16 +22,15 @@ CascadeClassifier logo_cascade;
 string window_name = "Capture - Face detection";
 
 
-void circle_hough_transform (Mat& img, int threshold, vector<Vec3f>& circles){
+void circle_hough_transform (Mat& img_gray, int threshold, vector<Vec3f>& circles){
 
 	Mat grad_x, grad_y;
 	Mat abs_grad_x, abs_grad_y;
 	char* window_name = "Gradient image";
-	Mat img_gray, grad;
+	Mat grad;
   	int ddepth = CV_16S;
   	int scale = 1;
   	int delta = 0;
-	cvtColor( img, img_gray, CV_BGR2GRAY );
 
 	/// Gradient X
 	Sobel( img_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
@@ -64,7 +63,7 @@ void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, doub
 ;
 
 
-	circle_hough_transform (frame, threshold, circles);
+	circle_hough_transform (frame_gray, threshold, circles);
 	std::cout << "Classifier: " << boards.size() << "; hough_circle: " <<\
 	   	circles.size () << std::endl;
 #ifndef FINAL
@@ -140,19 +139,19 @@ void detectAndSave( Mat img, double threshold )
 	equalizeHist( img_gray, equalized_img_gray );
 
 	//EQUALIZED
-	logo_cascade.detectMultiScale( equalized_img_gray, faces, 1.1, 4, 0|CV_HAAR_SCALE_IMAGE, 
-			Size(50, 50), Size(500,500) );
-	//BLURRED
-//	logo_cascade.detectMultiScale( blurred_img_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
+//	logo_cascade.detectMultiScale( equalized_img_gray, faces, 1.1, 4, 0|CV_HAAR_SCALE_IMAGE, 
 //			Size(50, 50), Size(500,500) );
+	//BLURRED
+	logo_cascade.detectMultiScale( blurred_img_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
+			Size(50, 50), Size(500,500) );
 	//BLURRED + EQUALIZED
 	//logo_cascade.detectMultiScale( equalized_blurred_img_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
 	//		Size(50, 50), Size(500,500) );
 
 	//Detect circles without blurr
-	detect_circle (img,img_gray, faces, threshold);
+//	detect_circle (img,img_gray, faces, threshold);
 	//Detect circles with blurr
-//	detect_circle (img,blurr_img_gray, faces, threshold);
+	detect_circle (img,blurred_img_gray, faces, threshold);
 
 
 #ifndef FINAL
