@@ -9,6 +9,8 @@
 using namespace std;
 using namespace cv;
 
+
+void circle_hough_transform (Mat& img, int threshold, vector<Vec3f>& circles);
 /** Function Headers */
 void detectAndSave( Mat frame, double );
 void threshold_image (Mat&, int);
@@ -19,46 +21,50 @@ CascadeClassifier logo_cascade;
 
 string window_name = "Capture - Face detection";
 
-void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, double threshold){
 
-	vector<Vec3f> circles;
-	vector<Rect> candidates;
-	double dist;
-	double x_c, y_c;
-	int min_index = 0;
-	double min_dist = 99999.0
-;
-	Mat grad;
-  int scale = 1;
-  int delta = 0;
-  int ddepth = CV_16S;
-	//cvtColor( frame, frame_gray, CV_BGR2GRAY );
-//	Mat frame = imread(image, CV_GRAY_SCALE);
+void circle_hough_transform (Mat& img, int threshold, vector<Vec3f>& circles){
+
 	Mat grad_x, grad_y;
-	  Mat abs_grad_x, abs_grad_y;
-		char* window_name = "Gradient image";
+	Mat abs_grad_x, abs_grad_y;
+	char* window_name = "Gradient image";
+	Mat img_gray, grad;
+  	int ddepth = CV_16S;
+  	int scale = 1;
+  	int delta = 0;
+	cvtColor( img, img_gray, CV_BGR2GRAY );
 
-	  /// Gradient X
-	  //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-	  Sobel( frame_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
-	  convertScaleAbs( grad_x, abs_grad_x );
+	/// Gradient X
+	Sobel( img_gray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+	convertScaleAbs( grad_x, abs_grad_x );
 
-	  /// Gradient Y
-	  //Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-	  Sobel( frame_gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
-	  convertScaleAbs( grad_y, abs_grad_y );
+	/// Gradient Y
+	Sobel( img_gray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
+	convertScaleAbs( grad_y, abs_grad_y );
 
-	  /// Total Gradient (approximate)
-	  addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
-
-//	threshold_image (grad, threshold); 
+	/// Total Gradient (approximate)
+	addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
 #ifdef STEP
 	namedWindow( window_name, CV_WINDOW_AUTOSIZE );
 	imshow(window_name, grad);
 	waitKey(0);
 #endif
-	HoughCircles( grad, circles, CV_HOUGH_GRADIENT, 1, grad.rows/4, 150, 80, 10, 200 );
-	
+//	threshold_image (img_gray, threshold); 
+	HoughCircles( grad, circles, CV_HOUGH_GRADIENT, 1, img_gray.rows/3, 150, 80, 10, 200 );
+		
+}
+
+void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, double threshold){
+
+	vector<Rect> candidates;
+	vector<Vec3f> circles;
+	double dist;
+	double x_c, y_c;
+	int min_index = 0;
+	double min_dist = 99999.0
+;
+
+
+	circle_hough_transform (frame, threshold, circles);
 	std::cout << "Classifier: " << boards.size() << "; hough_circle: " <<\
 	   	circles.size () << std::endl;
 #ifndef FINAL
@@ -118,29 +124,46 @@ int main( int argc, const char** argv )
 }
 
 /** @function detectAndSave */
-void detectAndSave( Mat frame, double threshold )
+void detectAndSave( Mat img, double threshold )
 {
 	std::vector<Rect> faces;
-	Mat frame_gray;// = frame;
+	Mat img_gray;// = frame;
+	Mat blurred_img;
+	Mat blurred_img_gray;
+	Mat equalized_blurred_img_gray;
+	Mat equalized_img_gray;
 
-	GaussianBlur( frame, frame, Size(5, 5), 2, 2 );
-	cvtColor( frame, frame_gray, CV_BGR2GRAY );
-	//equalizeHist( frame_gray, frame_gray );
+	GaussianBlur( img, blurred_img, Size(5, 5), 2, 2 );
+	cvtColor( img, img_gray, CV_BGR2GRAY );
+	cvtColor( blurred_img, blurred_img_gray, CV_BGR2GRAY );
+	equalizeHist( blurred_img_gray, equalized_blurred_img_gray );
+	equalizeHist( img_gray, equalized_img_gray );
 
-	//-- Detect faces
-	logo_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
+	//EQUALIZED
+	logo_cascade.detectMultiScale( equalized_img_gray, faces, 1.1, 4, 0|CV_HAAR_SCALE_IMAGE, 
 			Size(50, 50), Size(500,500) );
-	//detect_circle (frame_gray, faces, threshold);
-	detect_circle (frame,frame_gray, faces, threshold);
+	//BLURRED
+//	logo_cascade.detectMultiScale( blurred_img_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
+//			Size(50, 50), Size(500,500) );
+	//BLURRED + EQUALIZED
+	//logo_cascade.detectMultiScale( equalized_blurred_img_gray, faces, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE, 
+	//		Size(50, 50), Size(500,500) );
+
+	//Detect circles without blurr
+	detect_circle (img,img_gray, faces, threshold);
+	//Detect circles with blurr
+//	detect_circle (img,blurr_img_gray, faces, threshold);
+
+
 #ifndef FINAL
 	for( int i = 0; i < faces.size(); i++ )
 	{
-		rectangle(frame, Point(faces[i].x, faces[i].y), Point(faces[i].x + faces[i].width, faces[i].y + faces[i].height), Scalar( 0, 255, 0 ), 2);
+		rectangle(img, Point(faces[i].x, faces[i].y), Point(faces[i].x + faces[i].width, faces[i].y + faces[i].height), Scalar( 0, 255, 0 ), 2);
 	}
 #endif
 
 	//-- Save what you got
-	imwrite( "output.jpg", frame );
+	imwrite( "output.jpg", img );
 }
 
 
