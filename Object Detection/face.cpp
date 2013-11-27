@@ -19,6 +19,7 @@ void detectAndSave(Mat frame);
 void circle_hough_transform (Mat& img, vector<Vec3f>& circles);
 void detectCircles(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards);
 void circleHough(Mat& img_gray, vector<Vec3f>& circles);
+void detectLines(Mat &frame, vector<Vec4i>lines);
 
 /** Global variables */
 CascadeClassifier dartClassifier;
@@ -67,7 +68,8 @@ int main( int argc, const char** argv )
  */
 void detectAndSave(Mat img)
 {
-	std::vector<Rect> dartboards;
+	vector<Rect> dartboards;
+    vector<Vec4i> lines;
 	Mat img_gray;
 	Mat blurred_img, blurred_img_gray;
 	Mat equalized_img_gray, equalized_blurred_img_gray;
@@ -98,6 +100,9 @@ void detectAndSave(Mat img)
     
 	//Detect circles with blur
 	detectCircles(img, blurred_img_gray, dartboards);
+    
+    //Detect the lines
+    detectLines(img, lines);
     
 #ifndef FINAL
 	for( int i = 0; i < dartboards.size(); i++ )
@@ -194,5 +199,26 @@ void circleHough(Mat& imgGray, vector<Vec3f>& circles)
 	waitKey(0);
 #endif
 	HoughCircles(grad, circles, CV_HOUGH_GRADIENT, 1, imgGray.rows/3, 150, 80, 10, 200);
-		
+}
+
+void detectLines(Mat &frame, vector<Vec4i>lines)
+{
+    Mat frameGray, thresholdedImage, detectedLines;
+    
+    //Convert to grayscale
+    cvtColor(frame, frameGray, CV_BGR2GRAY);
+    
+    //Apply a binary threshold
+    threshold(frameGray, thresholdedImage, 220, 255, CV_THRESH_TRUNC);
+    
+    //Apply Canny edge detection
+    Canny(thresholdedImage, thresholdedImage, 50, 200, 3);
+    
+    //Apply Hough Lines detection
+    HoughLinesP(thresholdedImage, lines, 1, CV_PI/180, 40, 30, 10);
+    for(size_t i = 0; i < lines.size(); i++)
+    {
+        Vec4i l = lines[i];
+        line(frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,255,255), 1, CV_AA);
+    }
 }
