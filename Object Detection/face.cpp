@@ -15,9 +15,9 @@ using namespace std;
 using namespace cv;
 
 /** Function Headers */
-void detectAndSave(Mat frame);
+void detectAndSave(Mat frame,int,int);
 void circle_hough_transform (Mat& img, vector<Vec3f>& circles);
-void detectCircles(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards);
+void detectDartBoards(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards,int, int);
 void circleHough(Mat& img_gray, vector<Vec3f>& circles);
 void detectLines(Mat &frame, vector<Vec4i>lines);
 
@@ -53,7 +53,7 @@ int main( int argc, const char** argv )
     };
     
     //Detect the dartboards before saving the file
-	detectAndSave(frame);
+	detectAndSave(frame, atoi(argv[2]), atoi(argv[3]));
     
 	return 0;
 }
@@ -66,7 +66,7 @@ int main( int argc, const char** argv )
  * @param threshold - A value used
  *
  */
-void detectAndSave(Mat img)
+void detectAndSave(Mat img, int max_dist, int min_line_count)
 {
 	vector<Rect> dartboards;
     vector<Vec4i> lines;
@@ -99,7 +99,7 @@ void detectAndSave(Mat img)
     //	detect_circle (img,img_gray, dartboards);
     
 	//Detect circles with blur
-	detectCircles(img, blurred_img_gray, dartboards);
+	detectDartBoards(img, blurred_img_gray, dartboards, max_dist, min_line_count);
     
     //Detect the lines
     detectLines(img, lines);
@@ -117,25 +117,31 @@ void detectAndSave(Mat img)
 
 
 /**
- * @function detectCircles - Given a gray frame, this function draws all circles detected.
+ * @function detectDartBoards - Given a gray frame, this function draws all circles detected.
  *
  * @param frame - The image to draw the detected circles onto
  * @param frameGray - A grayscale version of the image
  * @param boards - A vector of all the dartboards that have been detected with the Haar feature classifier
  *
  */
-void detectCircles(Mat& frame, Mat& frameGray, std::vector<Rect>& boards)
+void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, int max_dist,
+		int min_line_count)
 {
 	vector<Rect> candidates;
 	vector<Vec3f> circles;
+	vector<int> votes;
+	vector<int> closest_sq_dist;
+	vector<int> closest_sq_index;
+	int min_index;
+
 	double dist;
 	double x_c, y_c;
-	int min_index = 0;
-	double min_dist = 99999.0;
     
+	//Detects the circles in the image
     circleHough(frameGray, circles);
 	std::cout << "Classifier: " << boards.size() << "; hough_circle: " <<\
     circles.size () << std::endl;
+
 #ifndef FINAL
     for( size_t i = 0; i < circles.size(); i++ )
   	{
@@ -148,22 +154,60 @@ void detectCircles(Mat& frame, Mat& frameGray, std::vector<Rect>& boards)
    	}
 #endif
 
+	//initialize the votes
+	votes.clear ();
 	for (int i = 0; i < circles.size (); i++){
+		votes.push_back (0);
+		closest_sq_dist.push_back(999999);
+		closest_sq_index.push_back(-1);
+	}
+	//iterate over all the board candidates detected by the circle hough transform
+	for (int i = 0; i < circles.size (); i++){
+		//Creates a Point object for the center of the circle
+		Point circ_c (circles[i][0], circles[i][1]);
+		//make the haar-like features vote 
 		for (int j = 0; j < boards.size (); j++){
+			//get the square center
 			x_c = boards[j].x + (boards[j].width/2.0);
 			y_c = boards[j].y + (boards[j].height/2.0);
+			
+			//Represent its center as a Point object
 			Point rect_c (x_c, y_c);
-			Point circ_c (circles[i][0], circles[i][1]);
+			//Calculate the distance between the center of the circle and the center of the
+			//square
 			dist = norm(rect_c - circ_c);
-			if ( dist < min_dist) {
-				min_dist = dist;
-				min_index = j;
+
+			//If the distance is smaller than a threshold, then the detected square votes
+			//for the circle as a dartboard
+			if ( dist <= max_dist) {
+				//Vote
+				votes[i]++;
+				//Check if the current square is the closest to the circle
+				if ( dist < closest_sq_dist[i] ){
+					//if it is store is information
+					closest_sq_dist[i] = dist;
+					closest_sq_index[i] = j;
+				}
 			}
 		}
+
+		//Now that all the squares have voted, it is time for the lines
+
 	}
-	if ( boards.size () > 0 ){
-		rectangle(frame, Point(boards[min_index].x-5, boards[min_index].y-5), Point(boards[min_index].x + boards[min_index].width + 5, boards[min_index].y + boards[min_index].height + 5), Scalar( 255, 255, 0 ), 2);
+
+	//Print the detected boards
+	for (int i = 0; i < circles.size ();i++){
+		if (votes[i] >= 1){
+			//It was voted at least once to be a dart board. Let's consider it a dartboard
+			Point center (circles[i][0], circles[i][1]);
+			int radius = cvRound(circles[i][2]);
+			circle( frame, center, radius, Scalar(255,255,0), 3, 8, 0 );
+		}
 	}
+
+//	if ( boards.size () > 0 ){
+//			rectangle(frame, Point(boards[min_index].x-5, boards[min_index].y-5), Point(boards[min_index].x + boards[min_index].width + 5, boards[min_index].y + boards[min_index].height + 5), Scalar( 255, 255, 0 ), 2);
+//	}
 }
 
 /**
@@ -216,9 +260,11 @@ void detectLines(Mat &frame, vector<Vec4i>lines)
     
     //Apply Hough Lines detection
     HoughLinesP(thresholdedImage, lines, 1, CV_PI/180, 40, 30, 10);
+#ifndef FINAL
     for(size_t i = 0; i < lines.size(); i++)
     {
         Vec4i l = lines[i];
         line(frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,255,255), 1, CV_AA);
     }
+#endif
 }
