@@ -26,7 +26,7 @@ void circle_hough_transform (Mat& img_gray, int threshold, vector<Vec3f>& circle
 
 	Mat grad_x, grad_y;
 	Mat abs_grad_x, abs_grad_y;
-	char* window_name = "Gradient image";
+	string window_name = "Gradient image";
 	Mat grad;
   	int ddepth = CV_16S;
   	int scale = 1;
