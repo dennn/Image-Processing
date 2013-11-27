@@ -10,7 +10,8 @@ using namespace std;
 using namespace cv;
 
 /** Function Headers */
-void detectAndSave( Mat frame, double );
+void detectAndSave(Mat frame, double);
+void thresholdImage(Mat &frame);
 
 /** Global variables */
 String logo_cascade_name = "dartcascade.xml";
@@ -57,7 +58,7 @@ void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, doub
 
 	  /// Total Gradient (approximate)
 	  addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
-	namedWindow( window_name, CV_WINDOW_AUTOSIZE );
+//	namedWindow( window_name, CV_WINDOW_AUTOSIZE );
 	//imshow(window_name, grad);
 	//waitKey(0);
 
@@ -94,7 +95,7 @@ void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, doub
 //	}
 	//imwrite( "output.jpg", frame );
 
-	
+
 }
 /** @function main */
 int main( int argc, const char** argv )
@@ -102,7 +103,13 @@ int main( int argc, const char** argv )
 	CvCapture* capture;
 	Mat frame = imread(argv[1], CV_LOAD_IMAGE_COLOR);
 	//Mat frame = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
+    
+    //Blur the image
+    GaussianBlur(frame, frame, Size(5, 5), 2, 2);
 
+    //Binarize image
+    thresholdImage(frame);
+    
 	//detect_circle (frame);
 	//-- 1. Load the cascades
 	//logo_cascade.load(logo_cascade_name);
@@ -119,12 +126,11 @@ void detectAndSave( Mat frame, double threshold )
 	std::vector<Rect> faces;
 	Mat frame_gray;// = frame;
 
-	GaussianBlur( frame, frame, Size(5, 5), 2, 2 );
 	cvtColor( frame, frame_gray, CV_BGR2GRAY );
-	//equalizeHist( frame_gray, frame_gray );
+	equalizeHist( frame_gray, frame_gray );
 
 	//-- Detect faces
-	logo_cascade.detectMultiScale( frame_gray, faces, 1.1, 3, 0|CV_HAAR_SCALE_IMAGE, Size(50, 50), Size(500,500) );
+	logo_cascade.detectMultiScale( frame_gray, faces, 1.1, 3, 0 | CV_HAAR_SCALE_IMAGE, Size(50, 50), Size(500,500) );
 	std::cout << faces.size() << std::endl;
 	//detect_circle (frame_gray, faces, threshold);
 	detect_circle (frame,frame_gray, faces, threshold);
@@ -136,5 +142,38 @@ void detectAndSave( Mat frame, double threshold )
 
 	//-- Save what you got
 	imwrite( "output.jpg", frame );
+}
 
+/**
+ * This function shows areas on the image where a particular colour exists. As RGB is effected by the luminosity in an image
+ * we convert to HSV colour space
+ *
+ *  @param frame - The frame that we wish to detect a colour in
+ *
+ */
+void thresholdImage(Mat &frame)
+{
+    Mat frameGray, thresholdedImage, detectedLines;
+
+    //Convert to grayscale
+    cvtColor(frame, frameGray, CV_BGR2GRAY);
+    
+    //Apply a binary threshold
+    threshold(frameGray, thresholdedImage, 220, 255, CV_THRESH_TRUNC);
+    
+    //Apply Canny edge detection
+    Canny(thresholdedImage, thresholdedImage, 50, 200, 3);
+    
+    //Reset detectedLines MAT
+    detectedLines = frame.clone();
+    
+    //Apply Hough Lines detection
+    vector<Vec4i> lines;
+    HoughLinesP(thresholdedImage, lines, 1, CV_PI/180, 40, 30, 10);
+    for(size_t i = 0; i < lines.size(); i++)
+    {
+        Vec4i l = lines[i];
+        line(detectedLines, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(0,0,255), 3, CV_AA);
+    }
+   	imwrite("segmented.jpg", detectedLines);
 }
