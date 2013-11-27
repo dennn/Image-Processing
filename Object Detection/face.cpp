@@ -51,13 +51,13 @@ void detect_circle (Mat& frame, Mat& frame_gray, std::vector<Rect>& boards, doub
 	  /// Total Gradient (approximate)
 	  addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
 
-	threshold_image (grad, threshold); 
+//	threshold_image (grad, threshold); 
 #ifdef STEP
 	namedWindow( window_name, CV_WINDOW_AUTOSIZE );
 	imshow(window_name, grad);
 	waitKey(0);
 #endif
-	HoughCircles( grad, circles, CV_HOUGH_GRADIENT, 1, grad.rows/5, 150, 80, 10, 200 );
+	HoughCircles( grad, circles, CV_HOUGH_GRADIENT, 1, grad.rows/4, 150, 80, 10, 200 );
 	
 	std::cout << "Classifier: " << boards.size() << "; hough_circle: " <<\
 	   	circles.size () << std::endl;
