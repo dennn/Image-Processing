@@ -19,7 +19,7 @@ void detectAndSave(Mat frame,int,int);
 void circle_hough_transform (Mat& img, vector<Vec3f>& circles);
 void detectDartBoards(Mat& frame, Mat& frame_gray, std::vector<Rect>& boards,vector<Vec4i>&,int, int);
 void circleHough(Mat& img_gray, vector<Vec3f>& circles);
-void detectLines(Mat &frame, vector<Vec4i>lines);
+void detectLines(Mat &frame, vector<Vec4i>& lines);
 
 /** Global variables */
 CascadeClassifier dartClassifier;
@@ -99,7 +99,7 @@ void detectAndSave(Mat img, int max_dist, int min_line_count)
     //	detect_circle (img,img_gray, dartboards);
     
     //Detect the lines
-    detectLines(img, lines);
+    detectLines(blurred_img, lines);
 	//Detect circles with blur
 	detectDartBoards(img, blurred_img_gray, dartboards, lines, max_dist, min_line_count);
     
@@ -143,7 +143,7 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, vec
 	//Detects the circles in the image
     circleHough(frameGray, circles);
 	std::cout << "Classifier: " << boards.size() << "; hough_circle: " <<\
-    circles.size () << std::endl;
+    circles.size () << "; line_num:" << lines.size ()<< std::endl;
 
 #ifndef FINAL
     for( size_t i = 0; i < circles.size(); i++ )
@@ -155,6 +155,11 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, vec
       	// circle outline
       	circle( frame, center, radius, Scalar(0,0,255), 3, 8, 0 );
    	}
+    for(size_t i = 0; i < lines.size(); i++)
+    {
+        Vec4i l = lines[i];
+        line(frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,255,255), 1, CV_AA);
+    }
 #endif
 
 	//initialize the votes
@@ -206,19 +211,18 @@ void detectDartBoards(Mat& frame, Mat& frameGray, std::vector<Rect>& boards, vec
 				
 			//if the line is within the circle it votes.
 			dist = norm(mid_point - circ_c);
-			if (dist <= radius+5){
+			if (dist <= radius){
 				line_num_in[i]++;
 			}
 		}
 	}
 
-	/*
 		//count the number of lines in the circles and process the votes
 		for (int j = 0; j < circles.size();j++){
+			cout << j << ":" << line_num_in[j]<<endl;
 			if (line_num_in[j] > min_line_count)
 				votes[j]++;
 		}
-*/
 
 	//Print the detected boards
 	for (int i = 0; i < circles.size ();i++){
@@ -268,9 +272,20 @@ void circleHough(Mat& imgGray, vector<Vec3f>& circles)
 	waitKey(0);
 #endif
 	HoughCircles(grad, circles, CV_HOUGH_GRADIENT, 1, imgGray.rows/3, 150, 80, 10, 200);
+	//If we try to reduce the maximum radius of the circles we want, in the function call
+	//above, circles of radius much smaller than the maximum will not be detected.
+	//Therefore, we keep that maximum radius higher and then after the detection, we
+	//remove those circles that we deem too big
+	for (int i = 0; i < circles.size(); i++){
+      	int radius = cvRound(circles[i][2]);
+		if (radius > 150){
+			circles.erase(circles.begin()+i);
+			i--;
+		}
+	}
 }
 
-void detectLines(Mat &frame, vector<Vec4i>lines)
+void detectLines(Mat &frame, vector<Vec4i>& lines)
 {
     Mat frameGray, thresholdedImage, detectedLines;
     
@@ -285,11 +300,4 @@ void detectLines(Mat &frame, vector<Vec4i>lines)
     
     //Apply Hough Lines detection
     HoughLinesP(thresholdedImage, lines, 1, CV_PI/180, 40, 30, 10);
-#ifndef FINAL
-    for(size_t i = 0; i < lines.size(); i++)
-    {
-        Vec4i l = lines[i];
-        line(frame, Point(l[0], l[1]), Point(l[2], l[3]), Scalar(255,255,255), 1, CV_AA);
-    }
-#endif
 }
