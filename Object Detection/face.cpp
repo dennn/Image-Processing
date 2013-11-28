@@ -85,15 +85,18 @@ void detectAndSave(Mat img, int max_dist, int min_line_count)
 	equalizeHist(img_gray, equalized_img_gray);
     
 	//EQUALIZED
-    //	dartClassifier.detectMultiScale( equalized_img_gray, dartboards, 1.1, 4, 0|CV_HAAR_SCALE_IMAGE,
+    //	dartClassifier.detectMultiScale( equalized_img_gray, dartboards, 1.05, 5, 0|CV_HAAR_SCALE_IMAGE,
     //			Size(50, 50), Size(500,500) );
     
 	//BLURRED
-	dartClassifier.detectMultiScale(blurred_img_gray, dartboards, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,
-                                  Size(50, 50), Size(500,500) );
+	//dartClassifier.detectMultiScale(blurred_img_gray, dartboards, 1.05, 2, 0|CV_HAAR_SCALE_IMAGE,
+     //                             Size(50, 50), Size(500,500) );
 	//BLURRED + EQUALIZED
-	//logo_cascade.detectMultiScale( equalized_blurred_img_gray, dartboards, 1.1, 2, 0|CV_HAAR_SCALE_IMAGE,
-	//		Size(50, 50), Size(500,500) );
+	/* We use a scale value of 1.05 rather than 1.1. This means we scale by a different amount each step
+	 * so can detect more boards of different sizes. 
+     */	 
+	dartClassifier.detectMultiScale( equalized_blurred_img_gray, dartboards, 1.05, 3, 0|CV_HAAR_SCALE_IMAGE,
+			Size(50, 50), Size(500,500) );
     
 	//Detect circles without blur
     //	detect_circle (img,img_gray, dartboards);
@@ -271,6 +274,9 @@ void circleHough(Mat& imgGray, vector<Vec3f>& circles)
 	imshow(window_name, grad);
 	waitKey(0);
 #endif
+	/* We change the minimum distance between the circle centres to reduce the number of circles
+	 * that are being detected. Ina  dart board we have a lot of circles in th3 same area. 
+	 */
 	HoughCircles(grad, circles, CV_HOUGH_GRADIENT, 1, imgGray.rows/3, 150, 80, 10, 200);
 	//If we try to reduce the maximum radius of the circles we want, in the function call
 	//above, circles of radius much smaller than the maximum will not be detected.
@@ -292,11 +298,8 @@ void detectLines(Mat &frame, vector<Vec4i>& lines)
     //Convert to grayscale
     cvtColor(frame, frameGray, CV_BGR2GRAY);
     
-    //Apply a binary threshold
-    threshold(frameGray, thresholdedImage, 220, 255, CV_THRESH_TRUNC);
-    
     //Apply Canny edge detection
-    Canny(thresholdedImage, thresholdedImage, 50, 200, 3);
+    Canny(frameGray, thresholdedImage, 50, 200, 3);
     
     //Apply Hough Lines detection
     HoughLinesP(thresholdedImage, lines, 1, CV_PI/180, 40, 30, 10);
