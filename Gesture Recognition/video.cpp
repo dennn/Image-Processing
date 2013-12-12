@@ -7,7 +7,7 @@
 #include <iostream>
 #include <stdio.h>
 #define DEFAULT_SAMPLING 0
-#define OF_VEC_NUM 50
+#define OF_VEC_NUM 2000
 using namespace std;
 using namespace cv;
 
@@ -100,7 +100,6 @@ int main( int argc, const char** argv )
 		if (count >= sampling){
 			count = -1;
 			LK (prevFrame, frame_gray, of_vec_queue, OF_VEC_NUM);
-			//TODO: Draw Optical Flow Vel vectors
 			while (of_vec_queue.size() > 0){
 				temp = of_vec_queue.top();
 				cv::line(frame, temp.start, temp.end, Scalar(255,0,0)); 
@@ -113,21 +112,43 @@ int main( int argc, const char** argv )
 		count ++;
 		// convertScaleAbs( derivT, derivT );
 	}
-/*
-	cv::Mat A,Dx,Dy;
+	/*
+	cv::Mat A,Dx,Dy,Dt,b;
+	int window_dimension = 3;
+	int window_radius = window_dimension/2;
+	int dimension = 5;
 
-	A.create (Size(2,2), CV_32F);
-	Dx.create (Size(3,3), CV_32F);
-	Dy.create (Size(3,3), CV_32F);
+	A.create (2,2, CV_32F);
+	b.create (2,1, CV_32F);
+	Dx.create (Size(dimension,dimension), CV_32F);
+	Dy.create (Size(dimension,dimension), CV_32F);
+	Dt.create (Size(dimension,dimension), CV_32F);
 
 
-	for (int i = 0; i < 3; i++){
-		for (int j = 0; j < 3; j++){
+
+	for (int i = 0; i < dimension; i++){
+		for (int j = 0; j < dimension; j++){
+			Dx.at<float>(i,j) = (i*dimension)+j;
+			Dy.at<float>(i,j) = ((i*dimension)+j+dimension*dimension);
+			Dt.at<float>(i,j) = (rand() % 10);
 		}
 	}
 
-*/
+	std::cout << "window_radius:" << window_radius << ";window_dimension:" << window_dimension
+		<< ";dimension:" << dimension << std::endl;
+	std::cout << "Dx:" << Dx << std::endl;
+	std::cout << "Dy:" << Dy << std::endl;
+	std::cout << "Dt:" << Dt << std::endl;
 
+	for (int i = window_radius; i < dimension-window_radius; i++){
+		for (int j = window_radius; j < dimension-window_radius; j++){
+			std::cout << "(" << i << "," << j << "):" << std::endl;
+			LKTracker (Dx,Dy,Dt,Point(i,j),window_dimension,A,b);
+			std::cout << "A:" << A << std::endl;
+			std::cout << "b:" << b << std::endl;
+		}
+	}
+*/
 
 }
 
@@ -232,8 +253,10 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 			sum_t += *current_row;
 		}
 	}
+	//This does not make sense at all. The matrix b is declared as having to elements in
+	//the first dimension. However, here we the access is inverted.
 	b.at<float>(0,0) = (-1)*sum_x*sum_t;
-	b.at<float>(1,0) = (-1)*sum_y*sum_t;
+	b.at<float>(0,1) = (-1)*sum_y*sum_t;
 }
 void LK (cv::Mat& prevFrame, cv::Mat& frame,
 		priority_queue<line_segment,vector<line_segment>, compare_line_segments>& vec_queue, 
@@ -244,7 +267,7 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	int vec_num = 0;
 
 
-	A.create(Size(2,2),CV_32F);
+	A.create(2,2,CV_32F);
 	b.create(2,1,CV_32F);
 	int windowDimension = 2;
 	int window_radius = windowDimension / 2;
@@ -263,6 +286,8 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	for (int i = window_radius; i < frame.rows - window_radius; i++){
 //		currentRow = frame.ptr<float>(i);
 		for (int j = window_radius; j < frame.cols - window_radius ; j++){
+			//TODO: I think this logic is working: x = j and y = i
+
 			targetPoint.x = j;
 			targetPoint.y = i;
 
