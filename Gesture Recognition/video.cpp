@@ -19,7 +19,7 @@ typedef struct {
 
 struct compare_line_segments{
 	bool operator () (const line_segment& A, const line_segment& B){
-		return A.norm > B.norm;
+		return A.norm < B.norm;
 	}
 };
 
@@ -39,6 +39,8 @@ void print_mat_d (cv::Mat& m);
 
 int main( int argc, const char** argv )
 {
+
+
 	Mat frame, frame_gray, derivX, derivY, derivT, prevFrame;
 	cv::VideoCapture cap;
 	int sampling, count;
@@ -106,16 +108,25 @@ int main( int argc, const char** argv )
 				of_vec_queue.pop();
 			}
 			imshow("video", frame);
-			/*
-			imshow("derivX", derivX);
-			imshow("derivY", derivY);
-			imshow("derivT", derivT);
-			*/
 			frame_gray.copyTo(prevFrame);
 		}
 		count ++;
 		// convertScaleAbs( derivT, derivT );
 	}
+/*
+	cv::Mat A,Dx,Dy;
+
+	A.create (Size(2,2), CV_32F);
+	Dx.create (Size(3,3), CV_32F);
+	Dy.create (Size(3,3), CV_32F);
+
+
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+		}
+	}
+
+*/
 
 
 }
@@ -151,20 +162,20 @@ void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoin
 	int end_row = windowStart.y + windowDimension;
 	int sum_x = 0;
 	int sum_y = 0;
+	int sum_t = 0;
 	//Get Ix(sum_x) first
 	for ( int i = windowStart.y ; i < end_row; i++){
-		const uchar* current_row = Dx.ptr<uchar>(i);
+		const float* current_row = Dx.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
 			sum_x += *current_row;
 		}
 	}
-	
 
 	//Calc sum_y
 	for ( int i = windowStart.y ; i < end_row; i++){
-		const uchar* current_row = Dy.ptr<uchar>(i);
+		const float* current_row = Dy.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
@@ -175,6 +186,7 @@ void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoin
 	A.at<float>(0,1) = sum_x*sum_y;
 	A.at<float>(1,0) = sum_x*sum_y;
 	A.at<float>(1,1) = sum_y*sum_y;
+
 }
 void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt, 
 		const cv::Point& targetPoint, unsigned windowDimension, cv::Mat& A, 
@@ -189,7 +201,7 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 	int sum_t = 0;
 	//Get Ix(sum_x) first
 	for ( int i = windowStart.y ; i < end_row; i++){
-		const uchar* current_row = Dx.ptr<uchar>(i);
+		const float* current_row = Dx.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
@@ -199,7 +211,7 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 
 	//Calc sum_y
 	for ( int i = windowStart.y ; i < end_row; i++){
-		const uchar* current_row = Dy.ptr<uchar>(i);
+		const float* current_row = Dy.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
@@ -213,7 +225,7 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 
 	//Calc sum_t
 	for ( int i = windowStart.y ; i < end_row; i++){
-		const uchar* current_row = Dt.ptr<uchar>(i);
+		const float* current_row = Dt.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
@@ -239,7 +251,7 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	line_segment seg_vec;
 
 
-//	uchar* currentRow;
+//	float* currentRow;
 	cv::Point targetPoint;
 	cv::Point velEndPoint;
 
@@ -249,7 +261,7 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 
 	//Calculates the optical flow for every single pixel in frame
 	for (int i = window_radius; i < frame.rows - window_radius; i++){
-//		currentRow = frame.ptr<uchar>(i);
+//		currentRow = frame.ptr<float>(i);
 		for (int j = window_radius; j < frame.cols - window_radius ; j++){
 			targetPoint.x = j;
 			targetPoint.y = i;
@@ -276,12 +288,12 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 //			cout << "b:" << endl;
 //			print_mat_d(b);
 			seg_vec.norm = norm(v);
-			std::cout << "vec v:" << v << std::endl;
-			std::cout << "norm:" << norm(v) << std::endl;
+//			std::cout << "vec v:" << v << std::endl;
+//			std::cout << "norm:" << norm(v) << std::endl;
 			if (seg_vec.norm == 0 ) continue;
-			else
-				std::cout << "norm larger than 0" << std::endl;
-			std:cout << "vec_num:" << vec_num << std::endl;
+//			else
+//				std::cout << "norm larger than 0" << std::endl;
+//			std:cout << "vec_num:" << vec_num << std::endl;
 			if (vec_num < max_vec_num){
 				velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
 				velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
@@ -374,7 +386,7 @@ void print_mat_d (cv::Mat& m){
 void print_mat (cv::Mat& m){
 	for (int i = 0; i < m.rows; i++){
 		for (int j = 0; j < m.cols; j++){
-			uchar e = m.at<uchar>(i,j);
+			float e = m.at<float>(i,j);
 			std::cout << (int)e << ";";
 		}
 		std::cout << std::endl;
