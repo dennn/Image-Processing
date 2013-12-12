@@ -39,7 +39,6 @@ void print_mat_d (cv::Mat& m);
 
 int main( int argc, const char** argv )
 {
-	/*
 	Mat frame, frame_gray, derivX, derivY, derivT, prevFrame;
 	cv::VideoCapture cap;
 	int sampling, count;
@@ -103,93 +102,21 @@ int main( int argc, const char** argv )
 			while (of_vec_queue.size() > 0){
 				temp = of_vec_queue.top();
 				cv::line(frame, temp.start, temp.end, Scalar(255,0,0)); 
-				std::cout << "norm:" << temp.norm << endl;
+				//std::cout << "norm:" << temp.norm << endl;
 				of_vec_queue.pop();
 			}
-//			getDerivatives (prevFrame, frame, derivX, derivY, derivT);
 			imshow("video", frame);
-//			imshow("derivX", derivX);
-//			imshow("derivY", derivY);
-//			imshow("derivT", derivT);
+			/*
+			imshow("derivX", derivX);
+			imshow("derivY", derivY);
+			imshow("derivT", derivT);
+			*/
 			frame_gray.copyTo(prevFrame);
 		}
 		count ++;
 		// convertScaleAbs( derivT, derivT );
 	}
 
-*/
-
-	cv::Mat img = cv::imread("/Users/mussel/Desktop/dart0.jpg", CV_LOAD_IMAGE_GRAYSCALE);
-
-	cv::Mat temp_x = (cv::Mat_<uchar>(4,4) << 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
-	cv::Mat temp_y = (cv::Mat_<uchar>(4,4) << 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
-	cv::Mat temp_t = (cv::Mat_<uchar>(4,4) << 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
-	cv::Mat A = (cv::Mat_<double>(2,2) << 722500,45900,45900,2916);
-	cv::Mat b = (cv::Mat_<double>(2,1) << 0,0);
-	cv::Mat pad_temp_x;
-	cv::Mat pad_temp_y;
-	cv::Mat pad_temp_t;
-	int window_dimension = 2;
-	int window_radius = (int)(window_dimension / 2) + 1;
-	cv::Mat Dx, Dy;
-
-//	namedWindow("derivX", CV_WINDOW_FREERATIO);
-//	namedWindow("derivY", 1);
-
-	cv::Mat AInv;
-	invert (A,AInv);
-	cout << "A:" << endl << A << endl;
-	for (int i = 0; i < 2;i++){
-		for (int j = 0; j < 2;j++){
-			cout << AInv.at<double>(i,j) << ",";
-		}
-		cout << endl;
-	}
-	cout << "AInv:" << endl << AInv << endl;
-
-
-	getSpatialDerivative (temp_x, Dx, Dy);
-
-	cv::normalize(temp_x, temp_x, 0, 255, CV_MINMAX);
-	imwrite( "output.jpg", temp_x );
-//	imshow("derivX", temp_x);
-//	imshow("derivY", Dy);
-	
-	cout << "frame:" <<endl << temp_x << endl;
-	cout << "Dx:" << endl << temp_x << endl;
-	cout << "Dy:" << endl << temp_y << endl;
-	calcMatA (temp_x,temp_y,Point(3,3),2,A);
-
-	cv::Mat AInv2;
-	invert (A,AInv2);
-	cout << "A:" << endl << A << endl;
-	cout << "AInv:" << endl << AInv2 << endl;
-
-/*	cv::copyMakeBorder( temp_x, pad_temp_x, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
-	cv::copyMakeBorder( temp_y, pad_temp_y, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
-	cv::copyMakeBorder( temp_t, pad_temp_t, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
-
-
-	std::cout << "pad_temp_x\n";
-	print_mat(pad_temp_x);
-	std::cout << "\n\n\n\n";
-	std::cout << "pad_temp_y\n";
-	print_mat(pad_temp_y);
-	std::cout << "\n\n\n\n";
-	std::cout << "pad_temp_t\n";
-	print_mat(pad_temp_t);
-	std::cout << "\n\n\n\n";
-//	LKTracker (pad_temp_x,pad_temp_y,pad_temp_t,Point (5,5),window_dimension,A,b);
-	std::cout <<"A:\n";
-	print_mat_d(A);
-	std::cout <<"b:\n";
-	print_mat_d(b);*/
 
 }
 
@@ -244,10 +171,10 @@ void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoin
 			sum_y += *current_row;
 		}
 	}
-	A.at<double>(0,0) = sum_x*sum_x;
-	A.at<double>(0,1) = sum_x*sum_y;
-	A.at<double>(1,0) = sum_x*sum_y;
-	A.at<double>(1,1) = sum_y*sum_y;
+	A.at<float>(0,0) = sum_x*sum_x;
+	A.at<float>(0,1) = sum_x*sum_y;
+	A.at<float>(1,0) = sum_x*sum_y;
+	A.at<float>(1,1) = sum_y*sum_y;
 }
 void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt, 
 		const cv::Point& targetPoint, unsigned windowDimension, cv::Mat& A, 
@@ -305,7 +232,7 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	int vec_num = 0;
 
 
-	A.create(2,2,CV_32F);
+	A.create(Size(2,2),CV_32F);
 	b.create(2,1,CV_32F);
 	int windowDimension = 2;
 	int window_radius = windowDimension / 2;
@@ -318,48 +245,49 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 
 	getDerivatives (prevFrame, frame, derivX, derivY, derivT);
 	//We need to pad derivX, derivY and derivT
-	cv::copyMakeBorder( derivX, padDerivX, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
-	cv::copyMakeBorder( derivY, padDerivY, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
-	cv::copyMakeBorder( derivT, padDerivT, 
-		window_radius, window_radius, window_radius, window_radius,
-		cv::BORDER_REPLICATE );
 
 
 	//Calculates the optical flow for every single pixel in frame
-	for (int i = 0; i < frame.rows; i++){
+	for (int i = window_radius; i < frame.rows - window_radius; i++){
 //		currentRow = frame.ptr<uchar>(i);
-		for (int j = 0; j < frame.cols; j++){
-			targetPoint.x = j+window_radius;
-			targetPoint.y = i+window_radius;
+		for (int j = window_radius; j < frame.cols - window_radius ; j++){
+			targetPoint.x = j;
+			targetPoint.y = i;
 
 			//LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
-			LKTracker (padDerivX, padDerivY, padDerivT, targetPoint, windowDimension, A, b);
+			LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
 
 			//Now we calculate the optical flow velocity vector v	
+			if ( determinant (A) == 0) continue;
 			invert(A, AInv);
+			//std::cout << "A:" << A << std::endl;
+			//std::cout << "AInv:" << AInv << std::endl;
 			v = AInv * b;
 			//Draw v onto frame
 			//original image, base point of the velocity vector, end of the velocity vector
 
 			
-			cout << "k_norm:" << norm(v) << ";" << v.at<float>(0,0) << "," << v.at<float>(1,0)<< endl;
-			cout << "A:" << endl;
-			print_mat_d(A);
-			cout << "det(A):" << cv::determinant(A)<<endl;
-			cout << "AInv" << endl;
-			print_mat_d(AInv);
-			cout << "b:" << endl;
-			print_mat_d(b);
+//			cout << "k_norm:" << norm(v) << ";" << v.at<float>(0,0) << "," << v.at<float>(1,0)<< endl;
+//			cout << "A:" << endl;
+//			print_mat_d(A);
+//			cout << "det(A):" << cv::determinant(A)<<endl;
+//			cout << "AInv" << endl;
+//			print_mat_d(AInv);
+//			cout << "b:" << endl;
+//			print_mat_d(b);
 			seg_vec.norm = norm(v);
+			std::cout << "vec v:" << v << std::endl;
+			std::cout << "norm:" << norm(v) << std::endl;
+			if (seg_vec.norm == 0 ) continue;
+			else
+				std::cout << "norm larger than 0" << std::endl;
+			std:cout << "vec_num:" << vec_num << std::endl;
 			if (vec_num < max_vec_num){
 				velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
 				velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
 				seg_vec.start = targetPoint;
 				seg_vec.end = velEndPoint;
+
 				vec_queue.push(seg_vec);
 				vec_num++;
 			}
@@ -369,13 +297,13 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 					velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
 					seg_vec.start = targetPoint;
 					seg_vec.end = velEndPoint;
+
 					vec_queue.push(seg_vec);
 					vec_num++;
 				}
 			}
 		}
 	}	
-	
 }
 
 
