@@ -1,27 +1,49 @@
 #include <opencv2/objdetect/objdetect.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <algorithm>
+#include <queue>
 
 #include <iostream>
 #include <stdio.h>
 #define DEFAULT_SAMPLING 0
+#define OF_VEC_NUM 50
 using namespace std;
 using namespace cv;
 
+typedef struct {
+	cv::Point start;
+	cv::Point end;
+	float norm;
+} line_segment;
+
+struct compare_line_segments{
+	bool operator () (const line_segment& A, const line_segment& B){
+		return A.norm > B.norm;
+	}
+};
+
+
+void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoint,
+		unsigned windowDimension, cv::Mat& A);
+void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy);
 void getDerivatives (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy,
 		cv::Mat& Dt);
 void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt, 
 		const cv::Point& targetPoint, unsigned windowDimension, cv::Mat& A, 
 		cv::Mat& b);
-void LK (cv::Mat& prevFrame, cv::Mat& frame);
+void LK (cv::Mat& prevFrame, cv::Mat& frame,
+		priority_queue<line_segment,vector<line_segment>, compare_line_segments>&, int);
 void print_mat (cv::Mat& m);
 void print_mat_d (cv::Mat& m);
 
 int main( int argc, const char** argv )
 {
-	Mat frame, derivX, derivY, derivT, prevFrame;
+	/*
+	Mat frame, frame_gray, derivX, derivY, derivT, prevFrame;
 	cv::VideoCapture cap;
 	int sampling, count;
+	line_segment temp;
 	if(argc > 1)
 	{
 		cap.open(string(argv[1]));
@@ -51,6 +73,10 @@ int main( int argc, const char** argv )
 			waitKey(APPLE_CAM_WAIT);
 		#endif
 	count = 0;
+
+
+	//This queue will store the top N optical flow vectors
+	priority_queue<line_segment,vector<line_segment>, compare_line_segments> of_vec_queue;
 	for(int i = 0;;i++)
 	{
 		waitKey(20);
@@ -61,43 +87,85 @@ int main( int argc, const char** argv )
 			break;
 		}
 		//converts the frame extracted to gray scale
-		cv::cvtColor(frame, frame, CV_BGR2GRAY);
+		cv::cvtColor(frame, frame_gray, CV_BGR2GRAY);
 
 		//If it's the first frame got from the webcam, set the previous frame
 		//as an empty frame
 		if (i == 0) {
-			prevFrame = cv::Mat::zeros(frame.size(), frame.type());
+			prevFrame = cv::Mat::zeros(frame_gray.size(), frame_gray.type());
 		}
 		//Checks whether we should the current frame to get the Derivative images or
 		//wait for another one
 		if (count >= sampling){
 			count = -1;
-			getDerivatives (prevFrame, frame, derivX, derivY, derivT);
+			LK (prevFrame, frame_gray, of_vec_queue, OF_VEC_NUM);
+			//TODO: Draw Optical Flow Vel vectors
+			while (of_vec_queue.size() > 0){
+				temp = of_vec_queue.top();
+				cv::line(frame, temp.start, temp.end, Scalar(255,0,0)); 
+				std::cout << "norm:" << temp.norm << endl;
+				of_vec_queue.pop();
+			}
+//			getDerivatives (prevFrame, frame, derivX, derivY, derivT);
 			imshow("video", frame);
-			imshow("derivX", derivX);
-			imshow("derivY", derivY);
-			imshow("derivT", derivT);
-			frame.copyTo(prevFrame);
+//			imshow("derivX", derivX);
+//			imshow("derivY", derivY);
+//			imshow("derivT", derivT);
+			frame_gray.copyTo(prevFrame);
 		}
 		count ++;
 		// convertScaleAbs( derivT, derivT );
 	}
 
+*/
 
+	cv::Mat img = cv::imread("/Users/mussel/Desktop/dart0.jpg", CV_LOAD_IMAGE_GRAYSCALE);
 
-	/******* TESTING CODE
 	cv::Mat temp_x = (cv::Mat_<uchar>(4,4) << 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
 	cv::Mat temp_y = (cv::Mat_<uchar>(4,4) << 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16);
 	cv::Mat temp_t = (cv::Mat_<uchar>(4,4) << 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
-	cv::Mat A = (cv::Mat_<float>(2,2) << 0,0,0,0);
-	cv::Mat b = (cv::Mat_<float>(2,1) << 0,0);
+	cv::Mat A = (cv::Mat_<double>(2,2) << 722500,45900,45900,2916);
+	cv::Mat b = (cv::Mat_<double>(2,1) << 0,0);
 	cv::Mat pad_temp_x;
 	cv::Mat pad_temp_y;
 	cv::Mat pad_temp_t;
 	int window_dimension = 2;
 	int window_radius = (int)(window_dimension / 2) + 1;
+	cv::Mat Dx, Dy;
 
-	cv::copyMakeBorder( temp_x, pad_temp_x, 
+//	namedWindow("derivX", CV_WINDOW_FREERATIO);
+//	namedWindow("derivY", 1);
+
+	cv::Mat AInv;
+	invert (A,AInv);
+	cout << "A:" << endl << A << endl;
+	for (int i = 0; i < 2;i++){
+		for (int j = 0; j < 2;j++){
+			cout << AInv.at<double>(i,j) << ",";
+		}
+		cout << endl;
+	}
+	cout << "AInv:" << endl << AInv << endl;
+
+
+	getSpatialDerivative (temp_x, Dx, Dy);
+
+	cv::normalize(temp_x, temp_x, 0, 255, CV_MINMAX);
+	imwrite( "output.jpg", temp_x );
+//	imshow("derivX", temp_x);
+//	imshow("derivY", Dy);
+	
+	cout << "frame:" <<endl << temp_x << endl;
+	cout << "Dx:" << endl << temp_x << endl;
+	cout << "Dy:" << endl << temp_y << endl;
+	calcMatA (temp_x,temp_y,Point(3,3),2,A);
+
+	cv::Mat AInv2;
+	invert (A,AInv2);
+	cout << "A:" << endl << A << endl;
+	cout << "AInv:" << endl << AInv2 << endl;
+
+/*	cv::copyMakeBorder( temp_x, pad_temp_x, 
 		window_radius, window_radius, window_radius, window_radius,
 		cv::BORDER_REPLICATE );
 	cv::copyMakeBorder( temp_y, pad_temp_y, 
@@ -117,24 +185,24 @@ int main( int argc, const char** argv )
 	std::cout << "pad_temp_t\n";
 	print_mat(pad_temp_t);
 	std::cout << "\n\n\n\n";
-	LKTracker (pad_temp_x,pad_temp_y,pad_temp_t,Point (5,5),window_dimension,A,b);
+//	LKTracker (pad_temp_x,pad_temp_y,pad_temp_t,Point (5,5),window_dimension,A,b);
 	std::cout <<"A:\n";
 	print_mat_d(A);
 	std::cout <<"b:\n";
-	print_mat_d(b);
-	*****************/
+	print_mat_d(b);*/
 
 }
 
 //Spatial derivative
 void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy){
-	static cv::Mat kernelX = (cv::Mat_<float>(3,3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
-	static cv::Mat kernelY = (cv::Mat_<float>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
-	
+	static cv::Mat kernelX = (cv::Mat_<short>(3,3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
+	static cv::Mat kernelY = (cv::Mat_<short>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
+
+
+	//depth is going to be the same as in source. Therefore, CV_8U
 	filter2D(currentFrame, Dx, -1 , kernelX, Point(-1,-1), 0, BORDER_DEFAULT );
-	// convertScaleAbs( derivX, derivX );
 	filter2D(currentFrame, Dy, -1 , kernelY, Point(-1,-1), 0, BORDER_DEFAULT );
-	// convertScaleAbs( derivY, derivY );
+
 	cv::normalize(Dx, Dx, 0, 255, CV_MINMAX);
 	cv::normalize(Dy, Dy, 0, 255, CV_MINMAX);
 }
@@ -165,6 +233,7 @@ void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoin
 			sum_x += *current_row;
 		}
 	}
+	
 
 	//Calc sum_y
 	for ( int i = windowStart.y ; i < end_row; i++){
@@ -175,10 +244,10 @@ void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoin
 			sum_y += *current_row;
 		}
 	}
-	A.at<float>(0,0) = sum_x*sum_x;
-	A.at<float>(0,1) = sum_x*sum_y;
-	A.at<float>(1,0) = sum_x*sum_y;
-	A.at<float>(1,1) = sum_y*sum_y;
+	A.at<double>(0,0) = sum_x*sum_x;
+	A.at<double>(0,1) = sum_x*sum_y;
+	A.at<double>(1,0) = sum_x*sum_y;
+	A.at<double>(1,1) = sum_y*sum_y;
 }
 void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt, 
 		const cv::Point& targetPoint, unsigned windowDimension, cv::Mat& A, 
@@ -227,16 +296,25 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 	b.at<float>(0,0) = (-1)*sum_x*sum_t;
 	b.at<float>(1,0) = (-1)*sum_y*sum_t;
 }
-void LK (cv::Mat& prevFrame, cv::Mat& frame){
+void LK (cv::Mat& prevFrame, cv::Mat& frame,
+		priority_queue<line_segment,vector<line_segment>, compare_line_segments>& vec_queue, 
+		int max_vec_num){
 	cv::Mat derivX, derivY, derivT;
 	cv::Mat padDerivX, padDerivY, padDerivT;
 	cv::Mat A, AInv, b, v;
+	int vec_num = 0;
+
+
+	A.create(2,2,CV_32F);
+	b.create(2,1,CV_32F);
 	int windowDimension = 2;
 	int window_radius = windowDimension / 2;
+	line_segment seg_vec;
 
 
 //	uchar* currentRow;
 	cv::Point targetPoint;
+	cv::Point velEndPoint;
 
 	getDerivatives (prevFrame, frame, derivX, derivY, derivT);
 	//We need to pad derivX, derivY and derivT
@@ -258,14 +336,46 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame){
 			targetPoint.x = j+window_radius;
 			targetPoint.y = i+window_radius;
 
-			LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
+			//LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
+			LKTracker (padDerivX, padDerivY, padDerivT, targetPoint, windowDimension, A, b);
+
 			//Now we calculate the optical flow velocity vector v	
-			AInv = A.inv();
+			invert(A, AInv);
 			v = AInv * b;
+			//Draw v onto frame
+			//original image, base point of the velocity vector, end of the velocity vector
+
+			
+			cout << "k_norm:" << norm(v) << ";" << v.at<float>(0,0) << "," << v.at<float>(1,0)<< endl;
+			cout << "A:" << endl;
+			print_mat_d(A);
+			cout << "det(A):" << cv::determinant(A)<<endl;
+			cout << "AInv" << endl;
+			print_mat_d(AInv);
+			cout << "b:" << endl;
+			print_mat_d(b);
+			seg_vec.norm = norm(v);
+			if (vec_num < max_vec_num){
+				velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
+				velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
+				seg_vec.start = targetPoint;
+				seg_vec.end = velEndPoint;
+				vec_queue.push(seg_vec);
+				vec_num++;
+			}
+			else{
+				if (seg_vec.norm > vec_queue.top().norm){
+					velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
+					velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
+					seg_vec.start = targetPoint;
+					seg_vec.end = velEndPoint;
+					vec_queue.push(seg_vec);
+					vec_num++;
+				}
+			}
 		}
 	}	
 	
-
 }
 
 
@@ -294,7 +404,7 @@ float harris_corner_evaluator (cv::Mat& A, float k){
 
 void harris_corner_detector (cv::Mat& img){
 	cv::Mat Dx, Dy, A;
-	cv::Mat detectorResponse (img.size (), CV_32FC1);
+	cv::Mat detectorResponse (img.size (), CV_32F);
 	float* resp_row;
 	int windowDimension = 2;
 	Point targetPixel (0,0);
