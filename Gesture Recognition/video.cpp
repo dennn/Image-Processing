@@ -7,7 +7,7 @@
 #include <iostream>
 #include <stdio.h>
 #define DEFAULT_SAMPLING 0
-#define OF_VEC_NUM 2000
+#define OF_VEC_NUM 9999999999
 using namespace std;
 using namespace cv;
 
@@ -65,8 +65,8 @@ int main( int argc, const char** argv )
 		printf("Error: could not load a camera or video.\n");
 	}
 	namedWindow("video", 1);
-	namedWindow("derivX", 1);
-	namedWindow("derivY", 1);
+	namedWindow("vX", 1);
+	namedWindow("vY", 1);
 	namedWindow("derivT", 1);
 
 		#ifdef APPLE_WEBCAM
@@ -95,6 +95,7 @@ int main( int argc, const char** argv )
 		if (i == 0) {
 			prevFrame = cv::Mat::zeros(frame_gray.size(), frame_gray.type());
 		}
+
 		//Checks whether we should the current frame to get the Derivative images or
 		//wait for another one
 		if (count >= sampling){
@@ -159,16 +160,16 @@ void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy){
 
 
 	//depth is going to be the same as in source. Therefore, CV_8U
-	filter2D(currentFrame, Dx, -1 , kernelX, Point(-1,-1), 0, BORDER_DEFAULT );
-	filter2D(currentFrame, Dy, -1 , kernelY, Point(-1,-1), 0, BORDER_DEFAULT );
+	filter2D(currentFrame, Dx, CV_32F , kernelX, Point(-1,-1), 0, BORDER_DEFAULT );
+	filter2D(currentFrame, Dy, CV_32F , kernelY, Point(-1,-1), 0, BORDER_DEFAULT );
 
-	cv::normalize(Dx, Dx, 0, 255, CV_MINMAX);
-	cv::normalize(Dy, Dy, 0, 255, CV_MINMAX);
+	//cv::normalize(Dx, Dx, 0, 255, CV_MINMAX);
+	//cv::normalize(Dy, Dy, 0, 255, CV_MINMAX);
 }
 //Temporal derivative
 void getTemporalDerivative (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dt){
 	Dt = currentFrame - prevFrame;
-	cv::normalize(Dt, Dt, 0, 255, CV_MINMAX);
+	//cv::normalize(Dt, Dt, 0, 255, CV_MINMAX);
 }
 void getDerivatives (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy,
 		cv::Mat& Dt){
@@ -217,17 +218,22 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 
 	Point windowStart (targetPoint.x - windowDimension/2, targetPoint.y - windowDimension/2);
 	int end_row = windowStart.y + windowDimension;
-	int sum_x = 0;
-	int sum_y = 0;
-	int sum_t = 0;
+	float sum_x = 0;
+	float sum_y = 0;
+	float sum_t = 0;
 	//Get Ix(sum_x) first
 	for ( int i = windowStart.y ; i < end_row; i++){
+		//std::cout << "Dx after:" << Dx << std::endl;
 		const float* current_row = Dx.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
+	//		std::cout << "Dx.at(" << i << "," << j << ")" << Dx.at<float>(i, j+windowStart.x) << std::endl;
+	//		std::cout << "(" << i << "," << j << *current_row << " ; " << current_row[j] << std::endl;
 			sum_x += *current_row;
+	//		std::cout << "sum_x:" << sum_x << "*current_row:" << *current_row << std::endl;
 		}
+	//	exit (0);
 	}
 
 	//Calc sum_y
@@ -256,21 +262,26 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 	//This does not make sense at all. The matrix b is declared as having to elements in
 	//the first dimension. However, here we the access is inverted.
 	b.at<float>(0,0) = (-1)*sum_x*sum_t;
-	b.at<float>(0,1) = (-1)*sum_y*sum_t;
+	b.at<float>(1,0) = (-1)*sum_y*sum_t;
 }
 void LK (cv::Mat& prevFrame, cv::Mat& frame,
 		priority_queue<line_segment,vector<line_segment>, compare_line_segments>& vec_queue, 
 		int max_vec_num){
 	cv::Mat derivX, derivY, derivT;
 	cv::Mat padDerivX, padDerivY, padDerivT;
+	cv::Mat vX, vY;
 	cv::Mat A, AInv, b, v;
 	int vec_num = 0;
+	int window_i, window_j;
 
 
 	A.create(2,2,CV_32F);
 	b.create(2,1,CV_32F);
-	int windowDimension = 2;
+	int windowDimension = 11;
 	int window_radius = windowDimension / 2;
+	vX.create(frame.rows / window_radius, frame.cols/window_radius,CV_32F);
+	vY.create(frame.rows / window_radius, frame.cols/window_radius,CV_32F);
+
 	line_segment seg_vec;
 
 
@@ -282,11 +293,14 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	//We need to pad derivX, derivY and derivT
 
 
+	window_i = 0;
 	//Calculates the optical flow for every single pixel in frame
-	for (int i = window_radius; i < frame.rows - window_radius; i++){
+	for (int i = window_radius; i < frame.rows - window_radius; i+=window_radius, window_i++){
 //		currentRow = frame.ptr<float>(i);
-		for (int j = window_radius; j < frame.cols - window_radius ; j++){
+		window_j = 0;
+		for (int j = window_radius; j < frame.cols - window_radius ; j+=window_radius,window_j++){
 			//TODO: I think this logic is working: x = j and y = i
+			
 
 			targetPoint.x = j;
 			targetPoint.y = i;
@@ -295,10 +309,15 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 			LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
 
 			//Now we calculate the optical flow velocity vector v	
-			if ( determinant (A) == 0) continue;
+			//std::cout << "A:" << A << std::endl;
+			if ( determinant (A) == 0) {
+				vX.at<float>(window_i, window_j) = 0;
+				vY.at<float>(window_i, window_j) = 0;
+				continue;
+			}
 			invert(A, AInv);
 			//std::cout << "A:" << A << std::endl;
-			//std::cout << "AInv:" << AInv << std::endl;
+
 			v = AInv * b;
 			//Draw v onto frame
 			//original image, base point of the velocity vector, end of the velocity vector
@@ -315,10 +334,27 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 			seg_vec.norm = norm(v);
 //			std::cout << "vec v:" << v << std::endl;
 //			std::cout << "norm:" << norm(v) << std::endl;
-			if (seg_vec.norm == 0 ) continue;
+			if (seg_vec.norm == 0 ){
+				vX.at<float>(window_i, window_j) = 0;
+				vY.at<float>(window_i, window_j) = 0;
+				continue;
+			}
+			std::cout << "A:" << A << std::endl;
+			std::cout << "AInv:" << AInv << std::endl;
+			std::cout << "b:" << b << std::endl;
+			std::cout << "before normalization:" << v << std::endl;
+			std::cout << "norm:" << seg_vec.norm << std::endl;
+			std::cout << std::endl;
+
+//			std::cout << "vec v:" << v << std::endl;
+
 //			else
 //				std::cout << "norm larger than 0" << std::endl;
 //			std:cout << "vec_num:" << vec_num << std::endl;
+			
+			vX.at<float>(window_i, window_j) = v.at<float>(0,0);
+			vY.at<float>(window_i, window_j) = v.at<float>(0,1);
+
 			if (vec_num < max_vec_num){
 				velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
 				velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
@@ -341,6 +377,14 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 			}
 		}
 	}	
+
+
+	cv::normalize(vX, vX, 0, 255, CV_MINMAX);
+	cv::normalize(vY, vY, 0, 255, CV_MINMAX);
+	//std::cout << "vX:" << vX << std::endl;
+	//std::cout << "vY:" << vY << std::endl;
+	imshow("vX", vX);
+	imshow("vY", vY);
 }
 
 
