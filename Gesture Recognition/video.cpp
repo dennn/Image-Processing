@@ -274,16 +274,24 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 			//original image, base point of the velocity vector, end of the velocity vector
 
 			seg_vec.norm = norm(v);
-
+/*
 			if (seg_vec.norm == 0 ){
 				vX.at<float>(window_i, window_j) = 0;
 				vY.at<float>(window_i, window_j) = 0;
 				continue;
 			}
-			
+			*/
 			vX.at<float>(window_i, window_j) = v.at<float>(0,0);
 			vY.at<float>(window_i, window_j) = v.at<float>(0,1);
 
+			velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
+			velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
+			seg_vec.start = targetPoint;
+			seg_vec.end = velEndPoint;
+
+			vec_queue.push(seg_vec);
+			
+			/*
 			if (vec_num < max_vec_num){
 				velEndPoint.x = (targetPoint.x + v.at<float>(0,0));
 				velEndPoint.y = (targetPoint.y + v.at<float>(0,1));
@@ -303,7 +311,8 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 					vec_queue.push(seg_vec);
 					vec_num++;
 				}
-			}
+			}*/
+
 		}
 	}	
 
