@@ -113,19 +113,30 @@ int main( int argc, const char** argv )
 	}
 }
 
+// Task 1: Calculate the derivatives
+void getDerivatives (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy,
+		cv::Mat& Dt){
+	getSpatialDerivative(currentFrame, Dx, Dy);
+	getTemporalDerivative(prevFrame, currentFrame, Dt);
+
+	imshow("Dx", Dx);
+	imshow("Dy", Dy);
+	imshow("Dt", Dt);
+}
+
 //Spatial derivative
-void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy){
+void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy)
+{
 	static cv::Mat kernelX = (cv::Mat_<short>(3,3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
 	static cv::Mat kernelY = (cv::Mat_<short>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
 
-
-	//depth is going to be the same as in source. Therefore, CV_8U
 	filter2D(currentFrame, Dx, CV_32F , kernelX, Point(-1,-1), 0, BORDER_DEFAULT );
 	filter2D(currentFrame, Dy, CV_32F , kernelY, Point(-1,-1), 0, BORDER_DEFAULT );
 
-	//cv::normalize(Dx, Dx, 0, 255, CV_MINMAX);
-	//cv::normalize(Dy, Dy, 0, 255, CV_MINMAX);
+	cv::normalize(Dx, Dx, 0, 255, CV_MINMAX);
+	cv::normalize(Dy, Dy, 0, 255, CV_MINMAX);
 }
+
 //Temporal derivative
 void getTemporalDerivative (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dt){
 	currentFrame.convertTo(currentFrame, CV_32F);
@@ -133,12 +144,6 @@ void getTemporalDerivative (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& 
 	Dt = currentFrame - prevFrame;
 	//cv::normalize(Dt, Dt, 0, 255, CV_MINMAX);
 }
-void getDerivatives (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy,
-		cv::Mat& Dt){
-	getSpatialDerivative 		(currentFrame, Dx, Dy);
-	getTemporalDerivative 	(prevFrame, currentFrame, Dt);
-}
-
 
 void calcMatA (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Point& targetPoint,
 		unsigned windowDimension, cv::Mat& A){
@@ -315,63 +320,6 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	imshow("vX", vX);
 	imshow("vY", vY);
 }
-
-
-
-/////////HARRIS CORNER DETECTOR/////////////////////////
-
-
-float harris_corner_evaluator (cv::Mat& A, float k){
-	//This function calculates the cornerness of a given pixel window
-	///////////////// _				_
-	//The matrix A = |Ix*Ix		Ix*Iy|
-	//////////////// |Iy*Ix		Iy*Iy|
-
-	float det_A;
-	float trace_A;
-	float* row_0 = A.ptr<float>(0);
-	float* row_1 = A.ptr<float>(1);
-
-	//Calculates the determinant of A
-	det_A = row_0[0]*row_1[1] - (row_0[1]*row_1[0]);
-	//Calculates the trace of A
-	trace_A = row_0[0] + row_1[1];
-
-	return det_A - k*(trace_A*trace_A);
-}
-
-void harris_corner_detector (cv::Mat& img){
-	cv::Mat Dx, Dy, A;
-	cv::Mat detectorResponse (img.size (), CV_32F);
-	float* resp_row;
-	int windowDimension = 2;
-	Point targetPixel (0,0);
-
-	getSpatialDerivative (img, Dx, Dy);
-	//iterate over the entire image
-	for (int i = 0; i < img.rows; i++){
-		//gets a new line
-		resp_row = detectorResponse.ptr<float>(i);
-		for (int j = 0; j < img.cols; j++){
-			targetPixel.x = j; //column index
-			targetPixel.y = i; //Row index
-			//WE NEED TO PAD  Dx AND Dy FIRST!!!				
-			calcMatA (Dx, Dy, targetPixel, windowDimension, A); 
-			resp_row[j] = harris_corner_evaluator (A, 0.15);
-
-		}
-	}
-		
-}
-//////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
 
 void print_mat_d (cv::Mat& m){
 	for (int i = 0; i < m.rows; i++){
