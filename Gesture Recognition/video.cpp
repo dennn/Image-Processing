@@ -168,6 +168,8 @@ void getSpatialDerivative (cv::Mat& currentFrame, cv::Mat& Dx, cv::Mat& Dy){
 }
 //Temporal derivative
 void getTemporalDerivative (cv::Mat& prevFrame, cv::Mat& currentFrame, cv::Mat& Dt){
+	currentFrame.convertTo(currentFrame, CV_32F);
+	prevFrame.convertTo(prevFrame, CV_32F);
 	Dt = currentFrame - prevFrame;
 	//cv::normalize(Dt, Dt, 0, 255, CV_MINMAX);
 }
@@ -339,12 +341,14 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 				vY.at<float>(window_i, window_j) = 0;
 				continue;
 			}
+			/*
 			std::cout << "A:" << A << std::endl;
 			std::cout << "AInv:" << AInv << std::endl;
 			std::cout << "b:" << b << std::endl;
 			std::cout << "before normalization:" << v << std::endl;
 			std::cout << "norm:" << seg_vec.norm << std::endl;
 			std::cout << std::endl;
+			*/
 
 //			std::cout << "vec v:" << v << std::endl;
 
@@ -379,8 +383,8 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	}	
 
 
-	cv::normalize(vX, vX, 0, 255, CV_MINMAX);
-	cv::normalize(vY, vY, 0, 255, CV_MINMAX);
+//	cv::normalize(vX, vX, 0, 255, CV_MINMAX);
+//	cv::normalize(vY, vY, 0, 255, CV_MINMAX);
 	//std::cout << "vX:" << vX << std::endl;
 	//std::cout << "vY:" << vY << std::endl;
 	imshow("vX", vX);
