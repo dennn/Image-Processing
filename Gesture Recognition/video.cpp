@@ -104,53 +104,13 @@ int main( int argc, const char** argv )
 			while (of_vec_queue.size() > 0){
 				temp = of_vec_queue.top();
 				cv::line(frame, temp.start, temp.end, Scalar(255,0,0)); 
-				//std::cout << "norm:" << temp.norm << endl;
 				of_vec_queue.pop();
 			}
 			imshow("video", frame);
 			frame_gray.copyTo(prevFrame);
 		}
 		count ++;
-		// convertScaleAbs( derivT, derivT );
 	}
-	/*
-	cv::Mat A,Dx,Dy,Dt,b;
-	int window_dimension = 3;
-	int window_radius = window_dimension/2;
-	int dimension = 5;
-
-	A.create (2,2, CV_32F);
-	b.create (2,1, CV_32F);
-	Dx.create (Size(dimension,dimension), CV_32F);
-	Dy.create (Size(dimension,dimension), CV_32F);
-	Dt.create (Size(dimension,dimension), CV_32F);
-
-
-
-	for (int i = 0; i < dimension; i++){
-		for (int j = 0; j < dimension; j++){
-			Dx.at<float>(i,j) = (i*dimension)+j;
-			Dy.at<float>(i,j) = ((i*dimension)+j+dimension*dimension);
-			Dt.at<float>(i,j) = (rand() % 10);
-		}
-	}
-
-	std::cout << "window_radius:" << window_radius << ";window_dimension:" << window_dimension
-		<< ";dimension:" << dimension << std::endl;
-	std::cout << "Dx:" << Dx << std::endl;
-	std::cout << "Dy:" << Dy << std::endl;
-	std::cout << "Dt:" << Dt << std::endl;
-
-	for (int i = window_radius; i < dimension-window_radius; i++){
-		for (int j = window_radius; j < dimension-window_radius; j++){
-			std::cout << "(" << i << "," << j << "):" << std::endl;
-			LKTracker (Dx,Dy,Dt,Point(i,j),window_dimension,A,b);
-			std::cout << "A:" << A << std::endl;
-			std::cout << "b:" << b << std::endl;
-		}
-	}
-*/
-
 }
 
 //Spatial derivative
@@ -225,17 +185,12 @@ void LKTracker (const cv::Mat& Dx, const cv::Mat& Dy, const cv::Mat& Dt,
 	float sum_t = 0;
 	//Get Ix(sum_x) first
 	for ( int i = windowStart.y ; i < end_row; i++){
-		//std::cout << "Dx after:" << Dx << std::endl;
 		const float* current_row = Dx.ptr<float>(i);
 		current_row+= windowStart.x;
 		for (unsigned j = 0; j < windowDimension; j++,current_row++){
 			//adds the value from the pixel (windowStart.y+i, windowStart.x+j)
-	//		std::cout << "Dx.at(" << i << "," << j << ")" << Dx.at<float>(i, j+windowStart.x) << std::endl;
-	//		std::cout << "(" << i << "," << j << *current_row << " ; " << current_row[j] << std::endl;
 			sum_x += *current_row;
-	//		std::cout << "sum_x:" << sum_x << "*current_row:" << *current_row << std::endl;
 		}
-	//	exit (0);
 	}
 
 	//Calc sum_y
@@ -286,8 +241,6 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 
 	line_segment seg_vec;
 
-
-//	float* currentRow;
 	cv::Point targetPoint;
 	cv::Point velEndPoint;
 
@@ -298,7 +251,6 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 	window_i = 0;
 	//Calculates the optical flow for every single pixel in frame
 	for (int i = window_radius; i < frame.rows - window_radius; i+=window_radius, window_i++){
-//		currentRow = frame.ptr<float>(i);
 		window_j = 0;
 		for (int j = window_radius; j < frame.cols - window_radius ; j+=window_radius,window_j++){
 			//TODO: I think this logic is working: x = j and y = i
@@ -307,54 +259,27 @@ void LK (cv::Mat& prevFrame, cv::Mat& frame,
 			targetPoint.x = j;
 			targetPoint.y = i;
 
-			//LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
 			LKTracker (derivX, derivY, derivT, targetPoint, windowDimension, A, b);
 
 			//Now we calculate the optical flow velocity vector v	
-			//std::cout << "A:" << A << std::endl;
 			if ( determinant (A) == 0) {
 				vX.at<float>(window_i, window_j) = 0;
 				vY.at<float>(window_i, window_j) = 0;
 				continue;
 			}
 			invert(A, AInv);
-			//std::cout << "A:" << A << std::endl;
 
 			v = AInv * b;
 			//Draw v onto frame
 			//original image, base point of the velocity vector, end of the velocity vector
 
-			
-//			cout << "k_norm:" << norm(v) << ";" << v.at<float>(0,0) << "," << v.at<float>(1,0)<< endl;
-//			cout << "A:" << endl;
-//			print_mat_d(A);
-//			cout << "det(A):" << cv::determinant(A)<<endl;
-//			cout << "AInv" << endl;
-//			print_mat_d(AInv);
-//			cout << "b:" << endl;
-//			print_mat_d(b);
 			seg_vec.norm = norm(v);
-//			std::cout << "vec v:" << v << std::endl;
-//			std::cout << "norm:" << norm(v) << std::endl;
+
 			if (seg_vec.norm == 0 ){
 				vX.at<float>(window_i, window_j) = 0;
 				vY.at<float>(window_i, window_j) = 0;
 				continue;
 			}
-			/*
-			std::cout << "A:" << A << std::endl;
-			std::cout << "AInv:" << AInv << std::endl;
-			std::cout << "b:" << b << std::endl;
-			std::cout << "before normalization:" << v << std::endl;
-			std::cout << "norm:" << seg_vec.norm << std::endl;
-			std::cout << std::endl;
-			*/
-
-//			std::cout << "vec v:" << v << std::endl;
-
-//			else
-//				std::cout << "norm larger than 0" << std::endl;
-//			std:cout << "vec_num:" << vec_num << std::endl;
 			
 			vX.at<float>(window_i, window_j) = v.at<float>(0,0);
 			vY.at<float>(window_i, window_j) = v.at<float>(0,1);
