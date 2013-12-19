@@ -10,6 +10,7 @@ using namespace cv;
 
 void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &frameResized, Point centre);
 void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show);
+void lkTracker(Mat &dx, Mat &dt, Mat &dy, Mat &frame, Mat &frameResized);
 
 int main(int argc, const char** argv)
 {
@@ -25,7 +26,10 @@ int main(int argc, const char** argv)
 	Mat frameOriginal, frameResized, frame, prev_frame, dy, dx, dt;
 	namedWindow("video", 1);
 
-	std::vector<cv::Point> features_prev, features_next;
+  	vector<Point2f> corners;
+	int maxCorners = 15;
+	double qualityLevel = 0.01;
+	double minDistance = 10;
 
 	for(int i = 0;;)
 	{
@@ -56,25 +60,8 @@ int main(int argc, const char** argv)
 		// Get derivatives
 		getDerivatives(frame, prev_frame, dx, dy, dt, false);
 
-		Mat matV;
-		int step = 10;
 
-	//	cv::goodFeaturesToTrack(frame, features_next);
-
-		cout << features_next;
-
-		// Loop through the region
-		for (int i = 100; i < frame.rows-100; i += step)
-		{
-			for (int j = 100; j < frame.cols-100; j += step)
-			{
-				Point centre;
-				centre.x = j + (step / 2);
-				centre.y = i + (step / 2);
-				int region[4] = {i, j, i + step, j + step};
-				estimateMotion(dx, dy, dt, matV, region, frameResized, centre);
-			}
-		}
+		lkTracker(dx, dt, dy, frame, frameResized);
 
 		// Show stuff
 		imshow("video", frameResized);
@@ -128,8 +115,8 @@ void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &fra
 	// Calculate the vector for this subregion
 	if (determinant(sumA) != 0.0) {
 		matV = sumA.inv() * sumB;
-		if (abs(matV.at<double>(0, 0)) > 2) {
-			cout << matV << endl;
+		// if (abs(matV.at<double>(0, 0)) < 1) {
+			//cout << matV << endl;
 			// Normalise lol
 			matV = matV * 100;
 			// cout << matV << endl;
@@ -137,13 +124,28 @@ void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &fra
 			vector.x = centre.x + matV.at<double>(0, 0);
 			vector.y = centre.y + matV.at<double>(1, 0);
 			line(frameResized, centre, vector, Scalar(0, 0, 0), 2, 8);
-		}
+		// }
 	}
 }
 
-void lkTracker(Mat &dx, Mat &dt, Mat &dy)
+void lkTracker(Mat &dx, Mat &dt, Mat &dy, Mat &frame, Mat &frameResized)
 {
+			Mat matV;
 
+			int step = 10;
+
+// Loop through the region
+		for (int i = 100; i < frame.rows-100; i += step)
+		{
+			for (int j = 100; j < frame.cols-100; j += step)
+			{
+				Point centre;
+				centre.x = j + (step / 2);
+				centre.y = i + (step / 2);
+				int region[4] = {i, j, i + step, j + step};
+				estimateMotion(dx, dy, dt, matV, region, frameResized, centre);
+			}
+		}
 }
 
 void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show)
@@ -173,4 +175,10 @@ void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool
 		imshow("dy", dy_v);
 		imshow("dt", dt_v);
 	}
+}
+
+
+/* Credit to http://creat-tabu.blogspot.co.uk/2013/08/opencv-python-hand-gesture-recognition.html */
+void Rect detectHand (Mat &frame) {
+	frame = 
 }
