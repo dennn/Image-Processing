@@ -8,10 +8,86 @@
 using namespace std;
 using namespace cv;
 
+void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &frameResized, Point centre);
+void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show);
+
+int main(int argc, const char** argv)
+{
+	cv::VideoCapture cap;
+	if(argc > 1)
+		cap.open(string(argv[1]));
+	else
+		cap.open(CV_CAP_ANY);
+
+	if(!cap.isOpened())
+		printf("Error: could not load a camera or video.\n");
+
+	Mat frameOriginal, frameResized, frame, prev_frame, dy, dx, dt;
+	namedWindow("video", 1);
+
+	std::vector<cv::Point> features_prev, features_next;
+
+	for(int i = 0;;)
+	{
+		waitKey(20);
+
+		// Get frame from capture
+		cap >> frameOriginal;
+		if(!frameOriginal.data) {
+			printf("Error: no frame data.\n");
+			break;
+		}
+
+		//Resize the frame
+		Size s(640, 480);
+		cv::resize(frameOriginal, frameResized, s);
+
+		// Convert frame to gray
+		cv::cvtColor(frameResized, frame, CV_BGR2GRAY);
+
+    	// If it's the first frame got from the webcam, set the previous frame
+    	// as an empty frame
+		if (i == 0) {
+			prev_frame = cv::Mat::zeros(frame.size(), frame.type());
+			i++;
+			continue;
+		}
+
+		// Get derivatives
+		getDerivatives(frame, prev_frame, dx, dy, dt, false);
+
+		Mat matV;
+		int step = 10;
+
+	//	cv::goodFeaturesToTrack(frame, features_next);
+
+		cout << features_next;
+
+		// Loop through the region
+		for (int i = 100; i < frame.rows-100; i += step)
+		{
+			for (int j = 100; j < frame.cols-100; j += step)
+			{
+				Point centre;
+				centre.x = j + (step / 2);
+				centre.y = i + (step / 2);
+				int region[4] = {i, j, i + step, j + step};
+				estimateMotion(dx, dy, dt, matV, region, frameResized, centre);
+			}
+		}
+
+		// Show stuff
+		imshow("video", frameResized);
+
+		// Copy current frame to prev_frame
+		frame.copyTo(prev_frame);
+	}
+}
+
 //
 // Estimates motion within a given subregion
 //
-void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[])
+void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &frameResized, Point centre)
 {
 	// Array is formatted like so:
 	// 	[ rstart, cstart,
@@ -50,9 +126,19 @@ void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[])
 	}
 
 	// Calculate the vector for this subregion
-	matV = sumA.inv() * sumB;
-	if (abs(matV.at<double>(0, 0)) > 10)
-		cout << matV << endl;
+	if (determinant(sumA) != 0.0) {
+		matV = sumA.inv() * sumB;
+		if (abs(matV.at<double>(0, 0)) > 2) {
+			cout << matV << endl;
+			// Normalise lol
+			matV = matV * 100;
+			// cout << matV << endl;
+			Point vector;
+			vector.x = centre.x + matV.at<double>(0, 0);
+			vector.y = centre.y + matV.at<double>(1, 0);
+			line(frameResized, centre, vector, Scalar(0, 0, 0), 2, 8);
+		}
+	}
 }
 
 void lkTracker(Mat &dx, Mat &dt, Mat &dy)
@@ -60,117 +146,31 @@ void lkTracker(Mat &dx, Mat &dt, Mat &dy)
 
 }
 
-void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt,
-	bool normalise)
+void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show)
 {
 	static cv::Mat kernelX = (cv::Mat_<short>(3,3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
-  static cv::Mat kernelY = (cv::Mat_<short>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
+  	static cv::Mat kernelY = (cv::Mat_<short>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
 
-  // Apply convolution to frame
-  filter2D(frame, dx, CV_8U, kernelX, Point(-1,-1), 0, BORDER_DEFAULT);
-  filter2D(frame, dy, CV_8U, kernelY, Point(-1,-1), 0, BORDER_DEFAULT);
+  	// Apply convolution to frame
+  	filter2D(frame, dx, CV_8U, kernelX, Point(-1,-1), 0, BORDER_DEFAULT);
+  	filter2D(frame, dy, CV_8U, kernelY, Point(-1,-1), 0, BORDER_DEFAULT);
 
-  // Calculate temporal derivative
-  dt = frame - prev_frame;
+  	// Calculate temporal derivative
+  	dt = frame - prev_frame;
 
-  if (normalise) {
-	  cv::normalize(dx, dx, 0, 255, CV_MINMAX);
-	  cv::normalize(dy, dy, 0, 255, CV_MINMAX);
-	  cv::normalize(dt, dt, 0, 255, CV_MINMAX);
-	}
-}
+  	Mat dx_v, dy_v, dt_v;
 
-int main(int argc, const char** argv)
-{
-	cv::VideoCapture cap;
-	if(argc > 1)
-		cap.open(string(argv[1]));
-	else
-		cap.open(CV_CAP_ANY);
+  	if (show) {
+		cv::normalize(dx, dx_v, 0, 255, CV_MINMAX);
+		cv::normalize(dy, dy_v, 0, 255, CV_MINMAX);
+		cv::normalize(dt, dt_v, 0, 255, CV_MINMAX);
 
-	if(!cap.isOpened())
-		printf("Error: could not load a camera or video.\n");
+		namedWindow("dx", 1);
+		namedWindow("dy", 1);
+		namedWindow("dt", 1);
 
-	#ifdef APPLE_WEBCAM
-    waitKey(APPLE_CAM_WAIT);
-  #endif
-
-	Mat frame_colour, frame, prev_frame, dy, dx, dt;
-	namedWindow("video", 1);
-	// namedWindow("dx", 1);
-	// namedWindow("dy", 1);
-	// namedWindow("dt", 1);
-	for(int i = 0;;)
-	{
-		waitKey(20);
-		// Get frame from capture
-		cap >> frame_colour;
-		if(!frame_colour.data)
-		{
-			printf("Error: no frame data.\n");
-			break;
-		}
-		// Convert frame to gray
-		cv::cvtColor(frame_colour, frame, CV_BGR2GRAY);
-
-    // If it's the first frame got from the webcam, set the previous frame
-    // as an empty frame
-		if (i == 0) {
-			prev_frame = cv::Mat::zeros(frame.size(), frame.type());
-			i++;
-			continue;
-		}
-
-		// Get derivatives
-		getDerivatives(frame, prev_frame, dx, dy, dt, false);
-
-		Mat matV;
-
-		int step = 10;
-
-		// Loop through the region
-		for (int i = 100; i < frame.rows - 100; i += step)
-		{
-			for (int j = 100; j < frame.cols - 100; j += step)
-			{
-				Point centre;
-				centre.x = j + (step / 2);
-				centre.y = i + (step / 2);
-				int region[4] = {i, j, i + step, j + step};
-				estimateMotion(dx, dy, dt, matV, region);
-				if (abs(matV.at<double>(0, 0)) > 10)
-					continue;
-				// Normalise lol
-				matV = matV * 100;
-				// cout << matV << endl;
-				Point vector;
-				vector.x = centre.x + matV.at<double>(0, 0);
-				vector.y = centre.y + matV.at<double>(1, 0);
-				// cout << vector.x << endl;
-				line( frame_colour,
-        centre,
-        vector,
-        Scalar( 0, 0, 0 ),
-        2,
-        8 );
-			}
-		}
-
-		// Show stuff
-		imshow("video", frame_colour);
-		// imshow("dx", dx);
-		// imshow("dy", dy);
-		// imshow("dt", dt);
-
-		// cout << matA << endl;
-		// cout << matA.inv() << endl;
-		// Mat matV;
-		// matV.create(2, 1, CV_64F);
-		// matV =
-		// cout << matA.inv() * matB << endl;
-
-		// Copy current frame to prev_frame
-		frame.copyTo(prev_frame);
-		// exit(0);
+		imshow("dx", dx_v);
+		imshow("dy", dy_v);
+		imshow("dt", dt_v);
 	}
 }
