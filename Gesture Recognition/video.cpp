@@ -9,7 +9,7 @@ using namespace std;
 using namespace cv;
 
 void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &frameResized, Point centre);
-void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show);
+void getDerivatives(Mat &frame, Mat &frame_prev, Mat &dx, Mat &dy, Mat &dt, bool display);
 void lkTracker(Mat &dx, Mat &dt, Mat &dy, Mat &frame, Mat &frameResized);
 
 int main(int argc, const char** argv)
@@ -26,10 +26,10 @@ int main(int argc, const char** argv)
 	Mat frameOriginal, frameResized, frame, prev_frame, dy, dx, dt;
 	namedWindow("video", 1);
 
-  	vector<Point2f> corners;
-	int maxCorners = 15;
-	double qualityLevel = 0.01;
-	double minDistance = 10;
+	vector<Point2f> corners;
+	// int maxCorners = 15;
+	// double qualityLevel = 0.01;
+	// double minDistance = 10;
 
 	for(int i = 0;;)
 	{
@@ -49,8 +49,8 @@ int main(int argc, const char** argv)
 		// Convert frame to gray
 		cv::cvtColor(frameResized, frame, CV_BGR2GRAY);
 
-    	// If it's the first frame got from the webcam, set the previous frame
-    	// as an empty frame
+  	// If it's the first frame got from the webcam, set the previous frame
+  	// as an empty frame
 		if (i == 0) {
 			prev_frame = cv::Mat::zeros(frame.size(), frame.type());
 			i++;
@@ -58,9 +58,7 @@ int main(int argc, const char** argv)
 		}
 
 		// Get derivatives
-		getDerivatives(frame, prev_frame, dx, dy, dt, false);
-
-
+		getDerivatives(frame, prev_frame, dx, dy, dt, true);
 		lkTracker(dx, dt, dy, frame, frameResized);
 
 		// Show stuff
@@ -97,88 +95,112 @@ void estimateMotion(Mat &dx, Mat &dt, Mat &dy, Mat &matV, int region[], Mat &fra
 			// Create A for this pixel
 			Mat matA;
 			matA.create(2, 2, CV_64F);
-			matA.at<double>(0, 0) = dx.at<uchar>(i, j) * dx.at<uchar>(i, j);
-			matA.at<double>(0, 1) = dx.at<uchar>(i, j) * dy.at<uchar>(i, j);
-			matA.at<double>(1, 0) = dx.at<uchar>(i, j) * dy.at<uchar>(i, j);
-			matA.at<double>(1, 1) = dy.at<uchar>(i, j) * dy.at<uchar>(i, j);
+			matA.at<double>(0, 0) = dx.at<double>(i, j) * dx.at<double>(i, j);
+			matA.at<double>(0, 1) = dx.at<double>(i, j) * dy.at<double>(i, j);
+			matA.at<double>(1, 0) = dx.at<double>(i, j) * dy.at<double>(i, j);
+			matA.at<double>(1, 1) = dy.at<double>(i, j) * dy.at<double>(i, j);
 			sumA += matA;
 
 			// Create B for this pixel
 			Mat matB;
 			matB.create(2, 1, CV_64F);
-			matB.at<double>(0, 0) = -1 * dx.at<uchar>(i, j) * dt.at<uchar>(i, j);
-			matB.at<double>(1, 0) = -1 * dy.at<uchar>(i, j) * dt.at<uchar>(i, j);
+			matB.at<double>(0, 0) = -1 * dx.at<double>(i, j) * dt.at<double>(i, j);
+			matB.at<double>(1, 0) = -1 * dy.at<double>(i, j) * dt.at<double>(i, j);
 			sumB += matB;
 		}
 	}
-
 	// Calculate the vector for this subregion
 	if (determinant(sumA) != 0.0) {
 		matV = sumA.inv() * sumB;
-		// if (abs(matV.at<double>(0, 0)) < 1) {
-			//cout << matV << endl;
-			// Normalise lol
-			matV = matV * 100;
-			// cout << matV << endl;
+		double magnitude = sqrt((matV.at<double>(0, 0) * matV.at<double>(0, 0))
+													+  matV.at<double>(1, 0) * matV.at<double>(1, 0));
+		// cout << magnitude << endl;
+		if (magnitude > 1) {
+			matV = matV * 30;
 			Point vector;
 			vector.x = centre.x + matV.at<double>(0, 0);
 			vector.y = centre.y + matV.at<double>(1, 0);
 			line(frameResized, centre, vector, Scalar(0, 0, 0), 2, 8);
-		// }
+		}
 	}
 }
 
-void lkTracker(Mat &dx, Mat &dt, Mat &dy, Mat &frame, Mat &frameResized)
+//
+// Goes over a region and estimates motion in subregions
+//
+void lkTracker(Mat &dx, Mat &dy, Mat &dt, Mat &frame, Mat &frameResized)
 {
+	// for (int i = 100; frame.rows)
 			Mat matV;
-
 			int step = 10;
-
-// Loop through the region
-		for (int i = 100; i < frame.rows-100; i += step)
-		{
-			for (int j = 100; j < frame.cols-100; j += step)
+			// Loop through the region
+			for (int ii = 100; ii < frame.rows-100; ii += step)
 			{
-				Point centre;
-				centre.x = j + (step / 2);
-				centre.y = i + (step / 2);
-				int region[4] = {i, j, i + step, j + step};
-				estimateMotion(dx, dy, dt, matV, region, frameResized, centre);
+				for (int jj = 100; jj < frame.cols-100; jj += step)
+				{
+					Point centre;
+					centre.x = jj + (step / 2);
+					centre.y = ii + (step / 2);
+					int region[4] = {ii, jj, ii + step, jj + step};
+					estimateMotion(dx, dy, dt, matV, region, frameResized, centre);
+				}
 			}
-		}
 }
 
-void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool show)
-{
-	static cv::Mat kernelX = (cv::Mat_<short>(3,3) << -1, 0, 1, -1, 0, 1, -1, 0, 1);
-  	static cv::Mat kernelY = (cv::Mat_<short>(3,3) << -1, -1, -1, 0, 0, 0, 1, 1, 1);
+void getDerivatives(Mat &frame, Mat &prev_frame, Mat &dx, Mat &dy, Mat &dt, bool display) {
+	// Create derivative matrices of type double
+  dx.create(frame.rows - 1, frame.cols - 1, CV_64F);
+  dy.create(frame.rows - 1, frame.cols - 1, CV_64F);
+  dt.create(frame.rows - 1, frame.cols - 1, CV_64F);
 
-  	// Apply convolution to frame
-  	filter2D(frame, dx, CV_8U, kernelX, Point(-1,-1), 0, BORDER_DEFAULT);
-  	filter2D(frame, dy, CV_8U, kernelY, Point(-1,-1), 0, BORDER_DEFAULT);
+  for(int i = 0; i < frame.rows - 1; i++) {
+    for(int j = 0; j < frame.cols - 1; j++) {
+    	double iA, iB, iC, iD;
 
-  	// Calculate temporal derivative
-  	dt = frame - prev_frame;
+    	// Get dx gradient by calculating difference between two adjacent points
+    	// in both frames
+    	iA = frame.at<uchar>(i, j + 1) - frame.at<uchar>(i, j);
+    	iB = frame.at<uchar>(i + 1, j + 1) - frame.at<uchar>(i + 1, j);
+    	iC = prev_frame.at<uchar>(i, j + 1) - prev_frame.at<uchar>(i, j);
+    	iD = prev_frame.at<uchar>(i + 1, j + 1) - prev_frame.at<uchar>(i + 1, j);
+    	dx.at<double>(i, j) = (iA + iB + iC + iD) / 4;
 
-  	Mat dx_v, dy_v, dt_v;
+    	// Get dy gradient by calculating difference between two adjacent points
+    	// in both frames
+    	iA = frame.at<uchar>(i + 1, j) - frame.at<uchar>(i, j);
+    	iB = frame.at<uchar>(i + 1, j + 1) - frame.at<uchar>(i, j + 1);
+    	iC = prev_frame.at<uchar>(i + 1, j) - prev_frame.at<uchar>(i, j);
+    	iD = prev_frame.at<uchar>(i + 1, j + 1) - prev_frame.at<uchar>(i, j + 1);
+    	dy.at<double>(i, j) = (iA + iB + iC + iD) / 4;
 
-  	if (show) {
-		cv::normalize(dx, dx_v, 0, 255, CV_MINMAX);
-		cv::normalize(dy, dy_v, 0, 255, CV_MINMAX);
-		cv::normalize(dt, dt_v, 0, 255, CV_MINMAX);
+    	// Get dt gradient by calculating difference between the same pixels in
+    	// each frame
+    	iA = frame.at<uchar>(i, j) - prev_frame.at<uchar>(i, j);
+    	iB = frame.at<uchar>(i + 1, j) - prev_frame.at<uchar>(i + 1, j);
+    	iC = frame.at<uchar>(i, j + 1) - prev_frame.at<uchar>(i, j + 1);
+    	iD = frame.at<uchar>(i + 1, j + 1) - prev_frame.at<uchar>(i + 1, j + 1);
+    	dt.at<double>(i, j) = (iA + iB + iC + iD) / 4;
+    }
+  }
+  if (display) {
+  	// To display we must normalise
+	  Mat dxNormalised, dyNormalised, dtNormalised;
+
+	  // Get minimum and maximum for derivatives
+	  double dxMax, dxMin, dyMax, dyMin, dtMax, dtMin;
+		cv::minMaxLoc(dx, &dxMax, &dxMin);
+		cv::minMaxLoc(dy, &dyMax, &dyMin);
+		cv::minMaxLoc(dt, &dtMax, &dtMin);
+		// Normalise by scaling
+		dx.convertTo(dxNormalised, CV_8U, 255.0/(dxMax - dxMin), -dxMin * 255.0/(dxMax - dxMin));
+		dy.convertTo(dyNormalised, CV_8U, 255.0/(dyMax - dyMin), -dyMin * 255.0/(dyMax - dyMin));
+		dt.convertTo(dtNormalised, CV_8U, 255.0/(dtMax - dtMin), -dtMin * 255.0/(dtMax - dtMin));
 
 		namedWindow("dx", 1);
 		namedWindow("dy", 1);
 		namedWindow("dt", 1);
-
-		imshow("dx", dx_v);
-		imshow("dy", dy_v);
-		imshow("dt", dt_v);
+	  imshow("dx", dxNormalised);
+	  imshow("dy", dyNormalised);
+	  imshow("dt", dtNormalised);
 	}
-}
-
-
-/* Credit to http://creat-tabu.blogspot.co.uk/2013/08/opencv-python-hand-gesture-recognition.html */
-void Rect detectHand (Mat &frame) {
-	frame = 
 }
